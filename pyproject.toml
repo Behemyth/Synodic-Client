@@ -1,7 +1,7 @@
 
 [project]
 description = ""
-license = "MIT"
+license = "LGPL"
 name = "synodic_client"
 
 authors = [
