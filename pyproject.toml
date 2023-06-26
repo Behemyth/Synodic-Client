@@ -28,6 +28,9 @@ repository = "https://github.com/Synodic-Software/Synodic-Client"
 [tool.pdm]
 version = {use_scm = true}
 [tool.pdm.dev-dependencies]
+build = [
+  "pyinstaller>=5.13.0",
+]
 lint = [
   "black>=23.1.0",
   "isort>=5.10.1",
@@ -40,7 +43,6 @@ test = [
   "tomlkit>=0.11.4",
   "pytest-mock>=3.10.0",
 ]
-
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
 format = {shell = "black --check --verbose ."}
