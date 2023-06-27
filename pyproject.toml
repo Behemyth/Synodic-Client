@@ -43,6 +43,10 @@ test = [
   "tomlkit>=0.11.4",
   "pytest-mock>=3.10.0",
 ]
+
+[project.gui-scripts]
+synodic-client = "synodic_client.client:main"
+
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
 format = {shell = "black --check --verbose ."}
@@ -71,6 +75,7 @@ plugins = ["pydantic.mypy"]
 strict = true
 
 [tool.pylint.MAIN]
+extension-pkg-whitelist = ["PySide6"]
 load-plugins = [
   "pylint.extensions.code_style",
   "pylint.extensions.typing",
