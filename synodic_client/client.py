@@ -23,7 +23,7 @@ def main() -> None:
     tray.setVisible(True)
 
     menu = QMenu()
-    action = QAction("A menu item")
+    action = QAction("About")
     menu.addAction(action)
 
     quit_action = QAction("Quit")
