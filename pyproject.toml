@@ -14,9 +14,9 @@ dynamic = ["version"]
 requires-python = ">=3.11,<3.12"
 
 dependencies = [
-    "porringer>=0.0.0",
-    "pyside6>=5.1",
-    "click>=8.1.5",
+  "porringer>=0.0.0",
+  "pyside6>=5.1",
+  "click>=8.1.5",
 ]
 
 [project.license-files]
@@ -28,6 +28,7 @@ repository = "https://github.com/Synodic-Software/Synodic-Client"
 
 [tool.pdm]
 version = {use_scm = true}
+
 [tool.pdm.dev-dependencies]
 build = [
   "pyinstaller>=5.13.0",
@@ -45,8 +46,11 @@ test = [
   "pytest-mock>=3.10.0",
 ]
 
+[project.scripts]
+synodic-client = "synodic_client.client:cli"
+
 [project.gui-scripts]
-synodic-client = "synodic_client.client:main"
+synodic-client-gui = "synodic_client.client:gui"
 
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}

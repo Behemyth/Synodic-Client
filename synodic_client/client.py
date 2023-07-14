@@ -6,7 +6,11 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 
-def main() -> None:
+def cli() -> None:
+    """The entrypoint for the command line interface"""
+
+
+def gui() -> None:
     """Entrypoint"""
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
@@ -36,4 +40,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    gui()
