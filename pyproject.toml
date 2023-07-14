@@ -14,8 +14,9 @@ dynamic = ["version"]
 requires-python = ">=3.11,<3.12"
 
 dependencies = [
-  "porringer>=0.0.0",
-  "pyside6>=5.1",
+    "porringer>=0.0.0",
+    "pyside6>=5.1",
+    "click>=8.1.5",
 ]
 
 [project.license-files]
