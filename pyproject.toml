@@ -1,7 +1,7 @@
 
 [project]
 description = ""
-license = "LGPL"
+license = {text = "LGPLv2"}
 name = "synodic_client"
 
 authors = [
@@ -26,8 +26,8 @@ paths = ["LICENSE.md"]
 homepage = "https://github.com/Synodic-Software/Synodic-Client"
 repository = "https://github.com/Synodic-Software/Synodic-Client"
 
-[tool.pdm]
-version = {use_scm = true}
+[tool.pdm.version]
+source = "scm"
 
 [tool.pdm.dev-dependencies]
 build = [
