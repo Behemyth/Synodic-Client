@@ -13,5 +13,5 @@
         "source.organizeImports": true
     },
     "python.linting.mypyEnabled": true,
-    "mypy.runUsingActiveInterpreter": true
+    "mypy-type-checker.importStrategy": "fromEnvironment"
 }
