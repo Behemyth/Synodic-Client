@@ -4,6 +4,6 @@ from pydantic import BaseModel
 
 
 class VersionInformation(BaseModel):
-    """_summary_"""
+    """Comparable information that can be extracted from a Python package"""
 
     version: str
