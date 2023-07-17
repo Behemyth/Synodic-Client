@@ -28,6 +28,8 @@ repository = "https://github.com/Synodic-Software/Synodic-Client"
 
 [tool.pdm.version]
 source = "scm"
+write_template = "__version__ = '{}'"
+write_to = "synodic-client/VERSION"
 
 [tool.pdm.dev-dependencies]
 build = [
@@ -47,10 +49,10 @@ test = [
 ]
 
 [project.scripts]
-synodic-client = "synodic_client.entry:cli"
+synodic-client = "synodic_client.application.click:cli"
 
 [project.gui-scripts]
-synodic-client-gui = "synodic_client.entry:gui"
+synodic-client-gui = "synodic_client.application.qt:gui"
 
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
