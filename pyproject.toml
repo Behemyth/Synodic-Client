@@ -47,10 +47,10 @@ test = [
 ]
 
 [project.scripts]
-synodic-client = "synodic_client.client:cli"
+synodic-client = "synodic_client.entry:cli"
 
 [project.gui-scripts]
-synodic-client-gui = "synodic_client.client:gui"
+synodic-client-gui = "synodic_client.entry:gui"
 
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
