@@ -17,6 +17,7 @@ dependencies = [
   "porringer>=0.0.0",
   "pyside6>=5.1",
   "click>=8.1.5",
+  "packaging>=23.1",
 ]
 
 [project.license-files]
@@ -31,10 +32,17 @@ source = "scm"
 write_template = "__version__ = '{}'"
 write_to = "synodic-client/VERSION"
 
-[tool.pdm.dev-dependencies]
-build = [
-  "pyinstaller>=5.13.0",
+[tool.pdm]
+plugins = [
+  "pdm-packer",
 ]
+
+[tool.pdm.options]
+install = ["--plugins"]
+pack = ["--exe", "--main", "synodic_client.application.qt:gui"]
+update = ["--update-all"]
+
+[tool.pdm.dev-dependencies]
 lint = [
   "black>=23.1.0",
   "isort>=5.10.1",
@@ -106,4 +114,5 @@ skip_empty = true
 
 [build-system]
 build-backend = "pdm.backend"
+install = ["--plugins"]
 requires = ["pdm.backend"]
