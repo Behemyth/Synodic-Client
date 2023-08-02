@@ -27,20 +27,10 @@ paths = ["LICENSE.md"]
 homepage = "https://github.com/Synodic-Software/Synodic-Client"
 repository = "https://github.com/Synodic-Software/Synodic-Client"
 
-[tool.pdm.version]
-source = "scm"
-write_template = "__version__ = '{}'"
-write_to = "synodic-client/VERSION"
-
 [tool.pdm]
 plugins = [
   "pdm-packer",
 ]
-
-[tool.pdm.options]
-install = ["--plugins"]
-pack = ["--exe", "--main", "synodic_client.application.qt:gui"]
-update = ["--update-all"]
 
 [tool.pdm.dev-dependencies]
 lint = [
@@ -62,6 +52,11 @@ synodic-client = "synodic_client.application.click:cli"
 [project.gui-scripts]
 synodic-client-gui = "synodic_client.application.qt:gui"
 
+[tool.pdm.options]
+install = ["--plugins"]
+pack = ["--exe", "--main", "synodic_client.application.qt:gui"]
+update = ["--update-all"]
+
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
 format = {shell = "black --check --verbose ."}
@@ -69,6 +64,11 @@ lint = {composite = ["analyze", "format", "sort-imports", "type-check"]}
 sort-imports = {shell = "isort --check-only --diff --verbose ."}
 test = {shell = "pytest --cov=synodic_client --verbose tests"}
 type-check = {shell = "mypy ."}
+
+# https://pdm-backend.fming.dev/build_config/#wheel-data-files
+# Files are flattened
+[tool.pdm.build.wheel-data]
+data = ["data/*"]
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -114,5 +114,4 @@ skip_empty = true
 
 [build-system]
 build-backend = "pdm.backend"
-install = ["--plugins"]
 requires = ["pdm.backend"]

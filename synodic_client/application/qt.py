@@ -1,26 +1,25 @@
 """gui"""
 
-from pathlib import Path
-
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+
+from synodic_client.client import Client
 
 
 def qt_application() -> None:
     """Entrypoint"""
 
+    client = Client()
+
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
 
-    # Create the icon
-    icon_path = Path("icon.png").absolute()
+    with client.resource("icon.png") as icon_path:
+        icon = QIcon(str(icon_path))
 
-    assert icon_path.exists()
+        tray = QSystemTrayIcon()
+        tray.setIcon(icon)
 
-    icon = QIcon(str(icon_path))
-
-    tray = QSystemTrayIcon()
-    tray.setIcon(icon)
     tray.setVisible(True)
 
     menu = QMenu()

@@ -17,7 +17,7 @@ pass_config = click.make_pass_decorator(Configuration, ensure=True)
 
 @click.group()
 @click.option("-v", "--verbose", count=True, help="Print additional output")
-@click.version_option()
+@click.version_option(package_name=__package__)
 @pass_config
 def cli(config: Configuration) -> None:
     """entry_point group for the CLI commands

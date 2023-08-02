@@ -1,6 +1,8 @@
 """The client type"""
 import importlib.metadata
 import importlib.resources
+from contextlib import AbstractContextManager
+from pathlib import Path
 
 from packaging.version import Version
 
@@ -15,8 +17,16 @@ class Client:
         Returns:
             The version data
         """
-        try:
-            return Version(importlib.metadata.version(__package__))
-        except importlib.metadata.PackageNotFoundError:
-            with (importlib.resources.files("synodic_client") / "VERSION").open("r", encoding="utf-8") as file:
-                return Version(file.read().strip())
+
+        return Version(importlib.metadata.version(__package__))
+
+    def resource(self, resource: str) -> AbstractContextManager[Path]:
+        """_summary_
+
+        Args:
+            resource: _description_
+
+        Returns:
+            _description_
+        """
+        return importlib.resources.path(__package__, resource)
