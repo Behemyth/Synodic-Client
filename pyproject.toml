@@ -54,7 +54,7 @@ synodic-client-gui = "synodic_client.application.qt:gui"
 
 [tool.pdm.options]
 install = ["--plugins"]
-pack = ["--exe", "--main", "synodic_client.application.qt:gui"]
+pack = ["--exe", "--main", "synodic_client.application.qt:cli"]
 update = ["--update-all"]
 
 [tool.pdm.scripts]

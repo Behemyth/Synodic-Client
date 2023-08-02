@@ -1,6 +1,5 @@
 """Installation tests"""
 
-
 from pathlib import Path
 
 from packaging.version import Version
@@ -21,6 +20,11 @@ class TestInstall:
         version = client.version
 
         assert version > Version("0.0.0")
+
+    def test_package(self) -> None:
+        """Verify that the proper package is selected"""
+        client = Client()
+        assert client.package == "synodic_client"
 
     def test_data(self) -> None:
         """Verify that all the files in 'static' can be read"""
