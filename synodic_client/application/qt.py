@@ -16,9 +16,9 @@ def application() -> None:
 
     with client.resource("icon.png") as icon_path:
         icon = QIcon(str(icon_path))
-
-        tray = QSystemTrayIcon()
-        tray.setIcon(icon)
+        print(icon_path)
+    tray = QSystemTrayIcon()
+    tray.setIcon(icon)
 
     tray.setVisible(True)
 
