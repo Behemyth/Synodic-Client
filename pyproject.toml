@@ -45,11 +45,8 @@ test = [
   "pytest-mock>=3.10.0",
 ]
 
-[project.scripts]
-synodic-client = "synodic_client.application.click:application"
-
 [project.gui-scripts]
-synodic-client-gui = "synodic_client.application.qt:application"
+synodic-client = "synodic_client.application.qt:application"
 
 [tool.pdm.options]
 pack = ["--exe", "--main", "synodic_client.application.qt:application"]

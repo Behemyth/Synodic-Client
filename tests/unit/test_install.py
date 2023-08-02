@@ -31,11 +31,9 @@ class TestInstall:
     def test_entrypoints(self) -> None:
         """Verify the entrypoints can be loaded"""
 
-        console_script = entry_points(name="synodic-client")
-        gui_script = entry_points(name="synodic-client-gui")
-        for entries in (console_script, gui_script):
-            for entry in entries:
-                assert entry.load()
+        entries = entry_points(name="synodic-client")
+        for entry in entries:
+            assert entry.load()
 
     def test_data(self) -> None:
         """Verify that all the files in 'static' can be read"""
