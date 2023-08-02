@@ -19,7 +19,7 @@ pass_config = click.make_pass_decorator(Configuration, ensure=True)
 @click.option("-v", "--verbose", count=True, help="Print additional output")
 @click.version_option()
 @pass_config
-def cli(config: Configuration) -> None:
+def application(config: Configuration) -> None:
     """entry_point group for the CLI commands
 
     Args:

@@ -47,14 +47,13 @@ test = [
 ]
 
 [project.scripts]
-synodic-client = "synodic_client.application.click:cli"
+synodic-client = "synodic_client.application.click:application"
 
 [project.gui-scripts]
-synodic-client-gui = "synodic_client.application.qt:gui"
+synodic-client-gui = "synodic_client.application.qt:application"
 
 [tool.pdm.options]
-install = ["--plugins"]
-pack = ["--exe", "--main", "synodic_client.application.qt:cli"]
+pack = ["--exe", "--main", "synodic_client.application.qt:application"]
 update = ["--update-all"]
 
 [tool.pdm.scripts]

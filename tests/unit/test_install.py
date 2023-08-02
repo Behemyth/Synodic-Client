@@ -1,5 +1,7 @@
 """Installation tests"""
 
+
+from importlib.metadata import entry_points
 from pathlib import Path
 
 from packaging.version import Version
@@ -25,6 +27,15 @@ class TestInstall:
         """Verify that the proper package is selected"""
         client = Client()
         assert client.package == "synodic_client"
+
+    def test_entrypoints(self) -> None:
+        """Verify the entrypoints can be loaded"""
+
+        console_script = entry_points(name="synodic-client")
+        gui_script = entry_points(name="synodic-client-gui")
+        for entries in (console_script, gui_script):
+            for entry in entries:
+                assert entry.load()
 
     def test_data(self) -> None:
         """Verify that all the files in 'static' can be read"""

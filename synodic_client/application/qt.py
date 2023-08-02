@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from synodic_client.client import Client
 
 
-def qt_application() -> None:
+def application() -> None:
     """Entrypoint"""
 
     client = Client()
