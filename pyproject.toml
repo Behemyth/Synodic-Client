@@ -26,11 +26,6 @@ paths = ["LICENSE.md"]
 homepage = "https://github.com/Synodic-Software/Synodic-Client"
 repository = "https://github.com/Synodic-Software/Synodic-Client"
 
-[tool.pdm]
-plugins = [
-  "pdm-packer",
-]
-
 [tool.pdm.dev-dependencies]
 lint = [
   "black>=23.1.0",
@@ -48,7 +43,6 @@ test = [
 synodic-client = "synodic_client.application.qt:application"
 
 [tool.pdm.options]
-pack = ["--exe", "--main", "synodic_client.application.qt:application"]
 update = ["--update-all"]
 
 [tool.pdm.scripts]
