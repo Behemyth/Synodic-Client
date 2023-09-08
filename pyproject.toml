@@ -16,7 +16,6 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
   "porringer>=0.0.0",
   "pyside6>=5.1",
-  "click>=8.1.5",
   "packaging>=23.1",
 ]
 
