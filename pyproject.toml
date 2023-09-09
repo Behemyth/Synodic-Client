@@ -27,6 +27,9 @@ homepage = "https://github.com/Synodic-Software/Synodic-Client"
 repository = "https://github.com/Synodic-Software/Synodic-Client"
 
 [tool.pdm.dev-dependencies]
+dev = [
+  "pyinstaller>=5.13.2",
+]
 lint = [
   "black>=23.1.0",
   "isort>=5.10.1",
@@ -38,9 +41,6 @@ test = [
   "pytest-cov>=4.0.0",
   "pytest-mock>=3.10.0",
 ]
-
-[project.gui-scripts]
-synodic-client = "synodic_client.application.qt:application"
 
 [tool.pdm.options]
 update = ["--update-all"]
@@ -55,8 +55,12 @@ type-check = {shell = "mypy ."}
 
 # https://pdm-backend.fming.dev/build_config/#wheel-data-files
 # Files are flattened
+
 [tool.pdm.build.wheel-data]
 data = ["data/*"]
+
+[project.gui-scripts]
+synodic-client = "synodic_client.application.qt:application"
 
 [tool.pytest.ini_options]
 log_cli = true
