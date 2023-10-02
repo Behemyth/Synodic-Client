@@ -1,9 +1,13 @@
 """gui"""
 
+from typing import LiteralString
+
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from synodic_client.client import Client
+
+icon: LiteralString = "icon.png"
 
 
 def application() -> None:
@@ -14,11 +18,11 @@ def application() -> None:
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
 
-    with client.resource("icon.png") as icon_path:
-        icon = QIcon(str(icon_path))
+    with client.resource(icon) as icon_path:
+        qt_icon = QIcon(str(icon_path))
         print(icon_path)
     tray = QSystemTrayIcon()
-    tray.setIcon(icon)
+    tray.setIcon(qt_icon)
 
     tray.setVisible(True)
 
