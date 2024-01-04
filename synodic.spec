@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['synodic_client\\application\\qt.py'],
+    ['gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('/data', 'data')],
+    datas=[('data', 'data')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
