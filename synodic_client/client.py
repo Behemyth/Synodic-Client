@@ -1,7 +1,8 @@
 """The client type"""
+
 import importlib.metadata
-import importlib.resources
 from contextlib import AbstractContextManager
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import LiteralString
 
@@ -41,4 +42,6 @@ class Client:
         Returns:
             _description_
         """
-        return importlib.resources.path(self.distribution, resource)
+
+        source = files(self.distribution).joinpath(resource)
+        return as_file(source)

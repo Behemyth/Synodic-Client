@@ -1,6 +1,5 @@
 """Installation tests"""
 
-
 from importlib.metadata import entry_points
 from pathlib import Path
 
@@ -54,4 +53,4 @@ class TestInstall:
         for file in paths:
             file_string = str(file.name)
             with client.resource(file_string) as path:
-                assert path.name == file.name
+                assert path.absolute() == file.absolute()
