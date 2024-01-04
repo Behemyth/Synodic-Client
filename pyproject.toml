@@ -54,8 +54,6 @@ test = {shell = "pytest --cov=synodic_client --verbose tests"}
 type-check = {shell = "mypy ."}
 
 # https://pdm-backend.fming.dev/build_config/#wheel-data-files
-# Files are flattened
-
 [tool.pdm.build.wheel-data]
 data = [{path = "data/**/*", relative-to = "data/"}]
 
