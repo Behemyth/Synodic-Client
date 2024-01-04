@@ -40,8 +40,8 @@ class Client:
             resource: _description_
 
         Returns:
-            _description_
+            A context manager for the expected resource file
         """
 
-        source = files(self.distribution).joinpath(resource)
+        source = files("data").joinpath(resource)
         return as_file(source)

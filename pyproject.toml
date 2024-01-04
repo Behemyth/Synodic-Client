@@ -56,9 +56,6 @@ type-check = {shell = "mypy ."}
 # https://pdm-backend.fming.dev/build_config/#wheel-data-files
 # Files are flattened
 
-[tool.pdm.build.wheel-data]
-data = ["data/*"]
-
 [project.gui-scripts]
 synodic-client = "synodic_client.application.qt:application"
 
