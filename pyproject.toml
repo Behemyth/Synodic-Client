@@ -47,7 +47,7 @@ update = ["--update-all"]
 
 [tool.pdm.scripts]
 analyze = {shell = "pylint --verbose synodic_client tests"}
-build = {shell = "pyinstaller --clean --onefile --name synodic-client --add-data data:data synodic_client/application/qt.py"}
+build = {shell = "pyinstaller --clean synodic.spec"}
 format = {shell = "black --check --verbose ."}
 lint = {composite = ["analyze", "format", "sort-imports", "type-check"]}
 sort-imports = {shell = "isort --check-only --diff --verbose ."}
