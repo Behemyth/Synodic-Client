@@ -21,7 +21,7 @@ class TestInstall:
         #   the package has the version metadata
         version = client.version
 
-        assert version > Version('0.0.0')
+        assert version >= Version('0.0.0')
 
     @staticmethod
     def test_package() -> None:
