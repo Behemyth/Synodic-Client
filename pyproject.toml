@@ -16,6 +16,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "pyside6>=6.8.1",
   "packaging>=24.2",
+  "porringer>=0.1.1.dev6",
 ]
 
 [project.urls]
@@ -26,7 +27,6 @@ repository = "https://github.com/Synodic-Software/Synodic-Client"
 lint = [
   "ruff>=0.8.1",
   "mypy>=1.13",
-  "isort>=5.13.2",
 ]
 test = [
   "pytest>=8.3.4",
@@ -41,8 +41,7 @@ update = ["--update-all"]
 analyze = {shell = "ruff check synodic_client tests"}
 build = {shell = "pyinstaller --clean synodic.spec"}
 format = {shell = "ruff format"}
-lint = {composite = ["analyze", "format", "sort-imports", "type-check"]}
-sort-imports = {shell = "isort --check-only --diff --verbose ."}
+lint = {composite = ["analyze", "format", "type-check"]}
 test = {shell = "pytest --cov=synodic_client --verbose tests"}
 type-check = {shell = "mypy ."}
 
@@ -62,9 +61,6 @@ testpaths = [
 [tool.black]
 line-length = 120
 preview = true
-
-[tool.isort]
-profile = "black"
 
 [tool.ruff]
 line-length = 120

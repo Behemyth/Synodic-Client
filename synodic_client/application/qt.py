@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 
 from synodic_client.client import Client
 
-icon: LiteralString = "icon.png"
+icon: LiteralString = 'icon.png'
 
 
 class MainWindow(QMainWindow):
@@ -38,18 +38,18 @@ def application() -> None:
     tray.setVisible(True)
 
     window = MainWindow()
-    window.setWindowTitle("Synodic Client")
+    window.setWindowTitle('Synodic Client')
 
     menu = QMenu()
 
-    open_action = QAction("Open")
+    open_action = QAction('Open')
     menu.addAction(open_action)
     open_action.triggered.connect(window.show)
 
-    settings_action = QAction("Settings")
+    settings_action = QAction('Settings')
     menu.addAction(settings_action)
 
-    quit_action = QAction("Quit")
+    quit_action = QAction('Quit')
     quit_action.triggered.connect(app.quit)
     menu.addAction(quit_action)
 

@@ -12,43 +12,45 @@ from synodic_client.client import Client
 class TestInstall:
     """Install tests"""
 
-    def test_version(self) -> None:
+    @staticmethod
+    def test_version() -> None:
         """Verify that the imported package version can be read"""
-
         client = Client()
 
         # The test should be running inside a PDM virtual environment which means that
         #   the package has the version metadata
         version = client.version
 
-        assert version > Version("0.0.0")
+        assert version > Version('0.0.0')
 
-    def test_package(self) -> None:
+    @staticmethod
+    def test_package() -> None:
         """Verify that the proper package is selected"""
         client = Client()
-        assert client.package == "synodic_client"
+        assert client.package == 'synodic_client'
 
-    def test_entrypoints(self) -> None:
+    @staticmethod
+    def test_entrypoints() -> None:
         """Verify the entrypoints can be loaded"""
-
-        entries = entry_points(name="synodic-client")
+        entries = entry_points(name='synodic-client')
         for entry in entries:
             assert entry.load()
 
-    def icon_exists(self) -> None:
+    @staticmethod
+    def icon_exists() -> None:
         """Verifies that the icon file used exists"""
         assert Path(icon).exists()
 
-    def test_data(self) -> None:
+    @staticmethod
+    def test_data() -> None:
         """Verify that all the files in 'static' can be read"""
-
         client = Client()
 
-        directory = Path("data")
+        directory = Path('data')
 
         assert directory.is_dir()
 
-        paths = directory.rglob("*")
+        paths = directory.rglob('*')
 
         for file in paths:
             file_string = str(file.name)

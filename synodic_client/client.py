@@ -12,7 +12,7 @@ from packaging.version import Version
 class Client:
     """The client"""
 
-    distribution: LiteralString = "synodic_client"
+    distribution: LiteralString = 'synodic_client'
 
     @property
     def version(self) -> Version:
@@ -43,5 +43,5 @@ class Client:
             A context manager for the expected resource file
         """
 
-        source = files("data").joinpath(resource)
+        source = files('data').joinpath(resource)
         return as_file(source)
