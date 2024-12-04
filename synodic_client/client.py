@@ -21,7 +21,6 @@ class Client:
         Returns:
             The version data
         """
-
         return Version(importlib.metadata.version(self.distribution))
 
     @property
@@ -33,7 +32,8 @@ class Client:
         """
         return self.distribution
 
-    def resource(self, resource: str) -> AbstractContextManager[Path]:
+    @staticmethod
+    def resource(resource: str) -> AbstractContextManager[Path]:
         """_summary_
 
         Args:
@@ -42,6 +42,5 @@ class Client:
         Returns:
             A context manager for the expected resource file
         """
-
         source = files('data').joinpath(resource)
         return as_file(source)

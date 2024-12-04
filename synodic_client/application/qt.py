@@ -18,12 +18,12 @@ class MainWindow(QMainWindow):
     """
 
     def __init__(self) -> None:
+        """_summary_"""
         super().__init__()
 
 
 def application() -> None:
     """Entrypoint"""
-
     client = Client()
 
     app = QApplication([])
