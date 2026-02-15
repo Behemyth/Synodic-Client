@@ -11,11 +11,13 @@ import logging
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum, StrEnum, auto
 from typing import Any
 
 import velopack
 from packaging.version import Version
+
+from synodic_client.protocol import register_protocol, remove_protocol
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +26,11 @@ logger = logging.getLogger(__name__)
 GITHUB_REPO_URL = 'https://github.com/synodic/synodic-client'
 
 
-class UpdateChannel(Enum):
+class UpdateChannel(StrEnum):
     """Update channel selection."""
 
-    STABLE = auto()
-    DEVELOPMENT = auto()
+    STABLE = 'stable'
+    DEVELOPMENT = 'development'
 
 
 class UpdateState(Enum):
@@ -56,6 +58,13 @@ class UpdateInfo:
     _velopack_info: Any = field(default=None, repr=False)
 
 
+# Default interval for automatic update checks (minutes)
+DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 30
+
+# Default interval for tool update checks (minutes)
+DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES = 20
+
+
 @dataclass
 class UpdateConfig:
     """Configuration for the updater."""
@@ -65,6 +74,12 @@ class UpdateConfig:
 
     # Channel determines whether to use dev or stable releases
     channel: UpdateChannel = UpdateChannel.STABLE
+
+    # Interval in minutes between automatic update checks (0 = disabled)
+    auto_update_interval_minutes: int = DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES
+
+    # Interval in minutes between tool update checks (0 = disabled)
+    tool_update_interval_minutes: int = DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
 
     @property
     def channel_name(self) -> str:
@@ -293,15 +308,42 @@ class Updater:
             return None
 
 
+def _on_after_install(version: str) -> None:  # noqa: ARG001
+    """Velopack hook: called after the app is installed.
+
+    Registers the ``synodic://`` URI protocol handler.
+
+    Args:
+        version: The installed version string (provided by Velopack).
+    """
+    register_protocol(sys.executable)
+
+
+def _on_before_uninstall(version: str) -> None:  # noqa: ARG001
+    """Velopack hook: called before the app is uninstalled.
+
+    Removes the ``synodic://`` URI protocol handler registration.
+
+    Args:
+        version: The current version string (provided by Velopack).
+    """
+    remove_protocol()
+
+
 def initialize_velopack() -> None:
     """Initialize Velopack at application startup.
 
     This should be called as early as possible in the application lifecycle,
     before any UI is shown. Velopack may need to perform cleanup or apply
     pending updates.
+
+    On Windows, install/uninstall hooks register the ``synodic://`` URI protocol.
     """
     try:
-        velopack.App().run()  # type: ignore[attr-defined]
+        app = velopack.App()  # type: ignore[attr-defined]
+        app.on_after_install_fast_callback(_on_after_install)
+        app.on_before_uninstall_fast_callback(_on_before_uninstall)
+        app.run()
         logger.debug('Velopack initialized')
     except Exception as e:
         logger.debug('Velopack initialization skipped: %s', e)

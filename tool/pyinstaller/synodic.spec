@@ -9,9 +9,28 @@ hiddenimports = []
 # Add porringer metadata so entry points work
 datas += copy_metadata('porringer')
 
-# Add your plugin packages here as you add them to dependencies
-# Example: datas += copy_metadata('porringer-plugin-name')
-# Example: hiddenimports += ['porringer_plugin_name']
+# Porringer bundled plugins (discovered via entry points at runtime)
+hiddenimports += [
+    'porringer.plugin.apt.plugin',
+    'porringer.plugin.brew.plugin',
+    'porringer.plugin.bun.plugin',
+    'porringer.plugin.bun_project.plugin',
+    'porringer.plugin.deno.plugin',
+    'porringer.plugin.deno_project.plugin',
+    'porringer.plugin.npm.plugin',
+    'porringer.plugin.npm_project.plugin',
+    'porringer.plugin.pdm.plugin',
+    'porringer.plugin.pim.plugin',
+    'porringer.plugin.pip.plugin',
+    'porringer.plugin.pipx.plugin',
+    'porringer.plugin.pnpm_project.plugin',
+    'porringer.plugin.poetry.plugin',
+    'porringer.plugin.pyenv.plugin',
+    'porringer.plugin.uv.plugin',
+    'porringer.plugin.uv_project.plugin',
+    'porringer.plugin.winget.plugin',
+    'porringer.plugin.yarn_project.plugin',
+]
 
 a = Analysis(
     ['../../synodic_client/application/qt.py'],
@@ -30,20 +49,27 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='synodic',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='synodic',
 )
