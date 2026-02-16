@@ -294,11 +294,11 @@ class Updater:
             return self._velopack_manager
 
         try:
-            options = velopack.UpdateOptions()  # type: ignore[attr-defined]
+            options = velopack.UpdateOptions()
             options.allow_version_downgrade = False
             options.explicit_channel = self._config.channel_name
 
-            self._velopack_manager = velopack.UpdateManager(  # type: ignore[attr-defined]
+            self._velopack_manager = velopack.UpdateManager(
                 self._config.repo_url,
                 options,
             )
@@ -340,7 +340,7 @@ def initialize_velopack() -> None:
     On Windows, install/uninstall hooks register the ``synodic://`` URI protocol.
     """
     try:
-        app = velopack.App()  # type: ignore[attr-defined]
+        app = velopack.App()
         app.on_after_install_fast_callback(_on_after_install)
         app.on_before_uninstall_fast_callback(_on_before_uninstall)
         app.run()

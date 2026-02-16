@@ -439,7 +439,7 @@ class TestInitializeVelopack:
 
     @staticmethod
     def test_initialize_success() -> None:
-        """Verify initialize_velopack calls velopack.App().run()."""
+        """Verify initialize_velopack calls App().run()."""
         mock_app = MagicMock()
         with patch('synodic_client.updater.velopack.App', return_value=mock_app) as mock_app_class:
             initialize_velopack()

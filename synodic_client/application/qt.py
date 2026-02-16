@@ -3,11 +3,9 @@
 import ctypes
 import logging
 import signal
-import subprocess
 import sys
 import types
 from collections.abc import Callable
-from urllib.parse import parse_qs, urlparse
 
 from porringer.api import API
 from porringer.schema import LocalConfiguration
@@ -19,33 +17,13 @@ from synodic_client.application.instance import SingleInstance
 from synodic_client.application.screen.install import InstallPreviewWindow
 from synodic_client.application.screen.screen import Screen
 from synodic_client.application.screen.tray import TrayScreen
+from synodic_client.application.uri import parse_uri
 from synodic_client.client import Client
 from synodic_client.config import GlobalConfiguration, set_dev_mode
 from synodic_client.logging import configure_logging
 from synodic_client.protocol import register_protocol
 from synodic_client.resolution import resolve_config, resolve_update_config
 from synodic_client.updater import initialize_velopack
-
-
-def parse_uri(uri: str) -> dict[str, str | list[str]]:
-    """Parse a ``synodic://`` URI into its components.
-
-    Example:
-        ``synodic://install?manifest=https://example.com/foo.toml``
-        returns ``{'action': 'install', 'manifest': ['https://example.com/foo.toml']}``.
-
-    Args:
-        uri: A ``synodic://`` URI string.
-
-    Returns:
-        A dict with ``'action'`` (the host/path) and any query parameters.
-    """
-    parsed = urlparse(uri)
-    result: dict[str, str | list[str]] = {
-        'action': parsed.netloc or parsed.path.strip('/'),
-    }
-    result.update(parse_qs(parsed.query))
-    return result
 
 
 def _init_services(logger: logging.Logger) -> tuple[Client, API, GlobalConfiguration]:
@@ -85,28 +63,6 @@ def _process_uri(uri: str, handler: Callable[[str], None]) -> None:
             handler(manifests[0])
 
 
-def _suppress_subprocess_consoles() -> None:
-    """Monkey-patch ``subprocess.Popen`` to hide console windows on Windows.
-
-    When the application is built as a windowed executable (``console=False``
-    in PyInstaller), every ``subprocess.Popen`` call that launches a console
-    program (pip, pipx, uv, winget, etc.) would briefly flash a visible
-    console window.  This patch adds ``CREATE_NO_WINDOW`` to *creationflags*
-    for all calls that don't already set it, suppressing those flashes.
-    """
-    if sys.platform != 'win32':
-        return
-
-    _original_init = subprocess.Popen.__init__
-
-    def _patched_init(self: subprocess.Popen, *args: object, **kwargs: object) -> None:  # type: ignore[override]
-        if 'creationflags' not in kwargs:
-            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-        _original_init(self, *args, **kwargs)  # type: ignore[arg-type]
-
-    subprocess.Popen.__init__ = _patched_init  # type: ignore[assignment]
-
-
 def _install_exception_hook(logger: logging.Logger) -> None:
     """Redirect unhandled exceptions to the log file.
 
@@ -131,7 +87,9 @@ def _init_app() -> QApplication:
     # Set the App User Model ID so Windows uses our icon on the taskbar
     # instead of the generic python.exe icon.
     if sys.platform == 'win32':
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('synodic.client')  # type: ignore[union-attr]
+        windll = getattr(ctypes, 'windll', None)
+        if windll is not None:
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID('synodic.client')
 
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
@@ -164,12 +122,10 @@ def application(*, uri: str | None = None, dev_mode: bool = False) -> None:
     # Activate dev-mode namespacing before anything reads config paths.
     set_dev_mode(dev_mode)
 
-    # Suppress console window flashes from subprocess calls (e.g. porringer
-    # running pip, pipx, uv) before any subprocesses are spawned.  Skipped
-    # in dev mode because the source-run process already has a console.
     if not dev_mode:
-        _suppress_subprocess_consoles()
-        # Initialize Velopack early, before any UI
+        # Initialize Velopack early, before any UI.
+        # Console window suppression for subprocesses is handled by the
+        # PyInstaller runtime hook (rthook_no_console.py).
         initialize_velopack()
         register_protocol(sys.executable)
 

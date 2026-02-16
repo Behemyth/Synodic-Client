@@ -68,7 +68,7 @@ quote-style = "single"
 skip_empty = true
 
 [tool.pyrefly]
-search_path = ["synodic_client/..."]
+replace-imports-with-any = ["velopack", "winreg"]
 
 [tool.pdm.version]
 source = "scm"
