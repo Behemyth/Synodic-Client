@@ -17,7 +17,7 @@ from typing import Any
 import velopack
 from packaging.version import Version
 
-from synodic_client.protocol import register_protocol, remove_protocol
+from synodic_client.protocol import remove_protocol
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,14 @@ class Updater:
         self._state = UpdateState.NO_UPDATE
         self._update_info: UpdateInfo | None = None
         self._velopack_manager: Any = None
+        self._velopack_not_installed: bool = False
+
+        logger.info(
+            'Updater created: version=%s, channel=%s, repo=%s',
+            self._current_version,
+            self._config.channel_name,
+            self._config.repo_url,
+        )
 
     @property
     def state(self) -> UpdateState:
@@ -110,12 +118,17 @@ class Updater:
 
     @property
     def is_installed(self) -> bool:
-        """Check if running as a Velopack-installed application."""
+        """Check if running as a Velopack-installed application.
+
+        Delegates to ``_get_velopack_manager`` which creates the
+        ``UpdateManager``.  The SDK constructor raises ``RuntimeError``
+        with *"not properly installed"* when no Velopack manifest is
+        found; that specific error is treated as "not installed" while
+        all other failures propagate.
+        """
         try:
-            manager = self._get_velopack_manager()
-            # If we can get the manager and it has a version, we're installed
-            return manager is not None
-        except Exception:
+            return self._get_velopack_manager() is not None
+        except RuntimeError:
             return False
 
     def check_for_update(self) -> UpdateInfo:
@@ -187,6 +200,7 @@ class Updater:
             return False
 
         self._state = UpdateState.DOWNLOADING
+        logger.info('Starting update download for %s', self._update_info._velopack_info)
 
         try:
             manager = self._get_velopack_manager()
@@ -284,42 +298,59 @@ class Updater:
             self._update_info.error = str(e)
             raise
 
+    _NOT_INSTALLED_SENTINEL = 'not properly installed'
+    """Substring the Velopack SDK includes in its ``RuntimeError`` when
+    the application was not installed via Velopack."""
+
     def _get_velopack_manager(self) -> Any:
         """Get or create the Velopack UpdateManager.
 
         Returns:
-            UpdateManager instance, or None if not installed via Velopack
+            UpdateManager instance, or ``None`` when the application is
+            not running from a Velopack installation.
+
+        Raises:
+            RuntimeError: If the ``UpdateManager`` could not be created
+                for a reason *other* than the app not being installed
+                (e.g. a genuine SDK or configuration problem).
         """
         if self._velopack_manager is not None:
             return self._velopack_manager
 
+        if self._velopack_not_installed:
+            return None
+
         try:
-            options = velopack.UpdateOptions()
-            options.allow_version_downgrade = False
-            options.explicit_channel = self._config.channel_name
+            options = velopack.UpdateOptions(
+                AllowVersionDowngrade=False,
+                MaximumDeltasBeforeFallback=0,
+            )
+            options.ExplicitChannel = self._config.channel_name
 
             self._velopack_manager = velopack.UpdateManager(
                 self._config.repo_url,
                 options,
             )
+            logger.debug(
+                'Velopack manager created: app_id=%s, version=%s, portable=%s',
+                self._velopack_manager.get_app_id(),
+                self._velopack_manager.get_current_version(),
+                self._velopack_manager.get_is_portable(),
+            )
             return self._velopack_manager
+        except RuntimeError as e:
+            if self._NOT_INSTALLED_SENTINEL in str(e).lower():
+                logger.debug('Not a Velopack install: %s', e)
+                self._velopack_not_installed = True
+                return None
+            logger.warning('Velopack manager creation failed: %s', e)
+            raise
         except Exception as e:
-            logger.debug('Failed to create Velopack manager: %s', e)
-            return None
+            logger.warning('Velopack manager creation failed: %s', e)
+            raise RuntimeError(f'Failed to create Velopack UpdateManager: {e}') from e
 
 
-def _on_after_install(version: str) -> None:  # noqa: ARG001
-    """Velopack hook: called after the app is installed.
-
-    Registers the ``synodic://`` URI protocol handler.
-
-    Args:
-        version: The installed version string (provided by Velopack).
-    """
-    register_protocol(sys.executable)
-
-
-def _on_before_uninstall(version: str) -> None:  # noqa: ARG001
+def _on_before_uninstall(version: str) -> None:
     """Velopack hook: called before the app is uninstalled.
 
     Removes the ``synodic://`` URI protocol handler registration.
@@ -327,7 +358,12 @@ def _on_before_uninstall(version: str) -> None:  # noqa: ARG001
     Args:
         version: The current version string (provided by Velopack).
     """
-    remove_protocol()
+    logger.info('Velopack uninstall hook fired for version %s', version)
+    try:
+        remove_protocol()
+        logger.info('Protocol handler removed successfully')
+    except Exception:
+        logger.warning('Protocol removal failed during uninstall hook', exc_info=True)
 
 
 def initialize_velopack() -> None:
@@ -337,13 +373,14 @@ def initialize_velopack() -> None:
     before any UI is shown. Velopack may need to perform cleanup or apply
     pending updates.
 
-    On Windows, install/uninstall hooks register the ``synodic://`` URI protocol.
+    On Windows, the uninstall hook removes the ``synodic://`` URI protocol.
+    Protocol registration happens on every app launch (see ``qt.application``).
     """
+    logger.info('Initializing Velopack (exe=%s)', sys.executable)
     try:
         app = velopack.App()
-        app.on_after_install_fast_callback(_on_after_install)
         app.on_before_uninstall_fast_callback(_on_before_uninstall)
         app.run()
-        logger.debug('Velopack initialized')
+        logger.info('Velopack initialized successfully')
     except Exception as e:
-        logger.debug('Velopack initialization skipped: %s', e)
+        logger.info('Velopack initialization skipped (not a Velopack install): %s', e)
