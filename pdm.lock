@@ -5,7 +5,7 @@
 groups = ["default", "build", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:bd9e98e0d50e1c54a0b99a288604b6f0abff6018bd52d4bf2caced3e73927265"
+content_hash = "sha256:20480c81a89571a4be78600a9497f9421eab4a51c003760a9ef02a62e5ad9cbd"
 
 [[metadata.targets]]
 requires_python = ">=3.14,<3.15"
@@ -272,7 +272,7 @@ files = [
 
 [[package]]
 name = "porringer"
-version = "0.2.1.dev20"
+version = "0.2.1.dev31"
 requires_python = ">=3.14"
 summary = ""
 groups = ["default"]
@@ -285,8 +285,8 @@ dependencies = [
     "userpath>=1.9.2",
 ]
 files = [
-    {file = "porringer-0.2.1.dev20-py3-none-any.whl", hash = "sha256:a3ba824b3ba96b35c7dca722e8fe666b292d380572f7afc323ee573f9e38f3b1"},
-    {file = "porringer-0.2.1.dev20.tar.gz", hash = "sha256:7ea53736631ceb92657ee23eb6993bd377a48dba0c4bd53ea41e23956323b7c3"},
+    {file = "porringer-0.2.1.dev31-py3-none-any.whl", hash = "sha256:54f7fa16b0f082ee213235299a1c1f0bc7bfd7949e6133ce47a88afb14287f6f"},
+    {file = "porringer-0.2.1.dev31.tar.gz", hash = "sha256:135a1b90d72faa6b0a9c75b28574908821c22b82587410cfcfac3ce1fa86fff0"},
 ]
 
 [[package]]
@@ -407,20 +407,20 @@ files = [
 
 [[package]]
 name = "pyrefly"
-version = "0.52.0"
+version = "0.53.0"
 requires_python = ">=3.8"
 summary = "A fast type checker and language server for Python with powerful IDE features"
 groups = ["lint"]
 files = [
-    {file = "pyrefly-0.52.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:90d7bf2fb812ee3a920a962da2aa2387e2f4109c62604e5be1a736046a3260c7"},
-    {file = "pyrefly-0.52.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:848764fdbc474fd36412d7ccf230d13a12ab3b2c28968124d9e9d51df79b7b8e"},
-    {file = "pyrefly-0.52.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:43b712830df1247798fb79f478a236b0ffbe5983bdde5eb2f5b99a9411e09f35"},
-    {file = "pyrefly-0.52.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:baa4130c460ad7c8d7efcff9017b7bc74c71736c5959ebfc2b7e405c2ce07d5d"},
-    {file = "pyrefly-0.52.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3297751b1b13ecb582af48c8798e0b652c41c33a7e4ed72676164b29561655f6"},
-    {file = "pyrefly-0.52.0-py3-none-win32.whl", hash = "sha256:d24ed11ef5eab93625df0bb4e67f7f946208b2b0ed4359b78f69cabbc6f78e3d"},
-    {file = "pyrefly-0.52.0-py3-none-win_amd64.whl", hash = "sha256:0e5bee368fbdce6430b7672304bc4e36f11bc3b72ad067cbfde934d380701a3b"},
-    {file = "pyrefly-0.52.0-py3-none-win_arm64.whl", hash = "sha256:8cabc07740e90c0baea12a1e7c48d6422130a19331033e8d9a16dd63e7e90db0"},
-    {file = "pyrefly-0.52.0.tar.gz", hash = "sha256:abe022b68e67a2fd9adad4f8fe2deced2a786df32601b0eecbb00b40ea1f3b93"},
+    {file = "pyrefly-0.53.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:79d7fb35dff0988b3943c26f74cc752fad54357a0bc33f7db665f02d1c9a5bcc"},
+    {file = "pyrefly-0.53.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:e1d98b1e86f3c38db44860695b7986e731238e1b19c3cad7a3050476a8f6f84d"},
+    {file = "pyrefly-0.53.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:cb9f2440f7e0c70aa18400f44aed994c326a1ab00f2b01cf7253a63fc62d7c6b"},
+    {file = "pyrefly-0.53.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:e4e826a5ff2aba2c41e02e6094580751c512db7916e60728cd8612dbcf178d7b"},
+    {file = "pyrefly-0.53.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bf4c69410c7a96b417a390a0e3d340f4370fdab02f9d3eaa222c4bd42e3ce24a"},
+    {file = "pyrefly-0.53.0-py3-none-win32.whl", hash = "sha256:00687bb6be6e366b8c0137a89625da40ced3b9212a65e561857ff888fe88e6e8"},
+    {file = "pyrefly-0.53.0-py3-none-win_amd64.whl", hash = "sha256:e0512e6f7af44ae01cfddba096ff7740e15cbd1d0497a3d34a7afcb504e2b300"},
+    {file = "pyrefly-0.53.0-py3-none-win_arm64.whl", hash = "sha256:5066e2102769683749102421b8b8667cae26abe1827617f04e8df4317e0a94af"},
+    {file = "pyrefly-0.53.0.tar.gz", hash = "sha256:aef117e8abb9aa4cf17fc64fbf450d825d3c65fc9de3c02ed20129ebdd57aa74"},
 ]
 
 [[package]]
@@ -540,6 +540,17 @@ files = [
 ]
 
 [[package]]
+name = "qasync"
+version = "0.28.0"
+requires_python = ">=3.8"
+summary = "Python library for using asyncio in Qt-based applications"
+groups = ["default"]
+files = [
+    {file = "qasync-0.28.0-py3-none-any.whl", hash = "sha256:21faba8d047c717008378f5ac29ea58c32a8128528629e4afd57c59b768dba0f"},
+    {file = "qasync-0.28.0.tar.gz", hash = "sha256:6f7f1f18971f59cb259b107218269ba56e3ad475ec456e54714b426a6e30b71d"},
+]
+
+[[package]]
 name = "rich"
 version = "14.3.2"
 requires_python = ">=3.8.0"
@@ -619,34 +630,34 @@ files = [
 
 [[package]]
 name = "typer"
-version = "0.23.1"
-requires_python = ">=3.9"
+version = "0.24.0"
+requires_python = ">=3.10"
 summary = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 groups = ["default"]
 dependencies = [
     "annotated-doc>=0.0.2",
-    "click>=8.0.0",
-    "rich>=10.11.0",
+    "click>=8.2.1",
+    "rich>=12.3.0",
     "shellingham>=1.3.0",
 ]
 files = [
-    {file = "typer-0.23.1-py3-none-any.whl", hash = "sha256:3291ad0d3c701cbf522012faccfbb29352ff16ad262db2139e6b01f15781f14e"},
-    {file = "typer-0.23.1.tar.gz", hash = "sha256:2070374e4d31c83e7b61362fd859aa683576432fd5b026b060ad6b4cd3b86134"},
+    {file = "typer-0.24.0-py3-none-any.whl", hash = "sha256:5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8"},
+    {file = "typer-0.24.0.tar.gz", hash = "sha256:f9373dc4eff901350694f519f783c29b6d7a110fc0dcc11b1d7e353b85ca6504"},
 ]
 
 [[package]]
 name = "typer"
-version = "0.23.1"
+version = "0.24.0"
 extras = ["all"]
-requires_python = ">=3.9"
+requires_python = ">=3.10"
 summary = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 groups = ["default"]
 dependencies = [
-    "typer==0.23.1",
+    "typer==0.24.0",
 ]
 files = [
-    {file = "typer-0.23.1-py3-none-any.whl", hash = "sha256:3291ad0d3c701cbf522012faccfbb29352ff16ad262db2139e6b01f15781f14e"},
-    {file = "typer-0.23.1.tar.gz", hash = "sha256:2070374e4d31c83e7b61362fd859aa683576432fd5b026b060ad6b4cd3b86134"},
+    {file = "typer-0.24.0-py3-none-any.whl", hash = "sha256:5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8"},
+    {file = "typer-0.24.0.tar.gz", hash = "sha256:f9373dc4eff901350694f519f783c29b6d7a110fc0dcc11b1d7e353b85ca6504"},
 ]
 
 [[package]]

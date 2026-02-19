@@ -1,26 +1,27 @@
 """Screen class for the Synodic Client application."""
 
-from __future__ import annotations
-
+import asyncio
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from porringer.api import API
-from porringer.schema import PluginInfo, PluginKind
+from porringer.schema import DirectoryValidationResult, ManifestDirectory, PluginInfo, SetupResults
+from porringer.schema.plugin import PluginKind
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QStandardItem
+from PySide6.QtGui import QResizeEvent, QStandardItem
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -30,8 +31,11 @@ from PySide6.QtWidgets import (
 
 from synodic_client.application.icon import app_icon
 from synodic_client.application.screen import plugin_kind_group_label
+from synodic_client.application.screen.card import CHEVRON_DOWN, CHEVRON_RIGHT, ClickableHeader
 from synodic_client.application.screen.install import PreviewWorker, SetupPreviewWidget
+from synodic_client.application.screen.spinner import SpinnerWidget
 from synodic_client.application.theme import (
+    CARD_SPACING,
     COMPACT_MARGINS,
     LOG_CHEVRON_STYLE,
     LOG_SECTION_TITLE_STYLE,
@@ -46,17 +50,10 @@ from synodic_client.application.theme import (
 )
 from synodic_client.config import GlobalConfiguration, save_config
 
-if TYPE_CHECKING:
-    from porringer.schema import ManifestDirectory
-
 logger = logging.getLogger(__name__)
 
 # Plugin kinds that support auto-update and per-plugin upgrade.
 _UPDATABLE_KINDS = frozenset({PluginKind.TOOL, PluginKind.PACKAGE})
-
-# Unicode chevrons
-_CHEVRON_DOWN = '\u25bc'
-_CHEVRON_RIGHT = '\u25b6'
 
 
 @dataclass
@@ -68,7 +65,7 @@ class PluginSectionData:
     packages: list[tuple[str, str]] = field(default_factory=list)
     auto_update: bool = True
     show_controls: bool = False
-    found: bool = True
+    installed: bool = True
 
 
 class PluginSection(QWidget):
@@ -100,7 +97,7 @@ class PluginSection(QWidget):
             data.version,
             data.auto_update,
             data.show_controls,
-            found=data.found,
+            installed=data.installed,
         )
         layout.addWidget(self._header)
 
@@ -117,20 +114,15 @@ class PluginSection(QWidget):
         auto_update: bool,
         show_controls: bool,
         *,
-        found: bool = True,
-    ) -> QWidget:
+        installed: bool = True,
+    ) -> ClickableHeader:
         """Construct the clickable header row."""
-        header = QWidget()
-        header.setObjectName('pluginHeader')
-        header.setStyleSheet(PLUGIN_SECTION_HEADER_STYLE)
-        header.setCursor(Qt.CursorShape.PointingHandCursor)
-        header.mousePressEvent = lambda _event: self._toggle()
+        header = ClickableHeader('pluginHeader', PLUGIN_SECTION_HEADER_STYLE)
+        header.clicked.connect(self._toggle)
 
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(6)
+        header_layout = header.header_layout
 
-        self._chevron = QLabel(_CHEVRON_RIGHT)
+        self._chevron = QLabel(CHEVRON_RIGHT)
         self._chevron.setStyleSheet(LOG_CHEVRON_STYLE)
         self._chevron.setFixedWidth(14)
         header_layout.addWidget(self._chevron)
@@ -162,12 +154,12 @@ class PluginSection(QWidget):
             )
             header_layout.addWidget(update_btn)
 
-            if not found:
+            if not installed:
                 self._toggle_btn.setEnabled(False)
                 self._toggle_btn.setChecked(False)
-                self._toggle_btn.setToolTip('Plugin not found \u2014 cannot auto-update')
+                self._toggle_btn.setToolTip('Not installed \u2014 cannot auto-update')
                 update_btn.setEnabled(False)
-                update_btn.setToolTip('Plugin not found \u2014 cannot update')
+                update_btn.setToolTip('Not installed \u2014 cannot update')
 
         return header
 
@@ -204,7 +196,7 @@ class PluginSection(QWidget):
         """Toggle the body visibility."""
         self._expanded = not self._expanded
         self._body.setVisible(self._expanded)
-        self._chevron.setText(_CHEVRON_DOWN if self._expanded else _CHEVRON_RIGHT)
+        self._chevron.setText(CHEVRON_DOWN if self._expanded else CHEVRON_RIGHT)
 
     # --- Callbacks ---
 
@@ -252,19 +244,14 @@ class PluginGroupSection(QWidget):
 
     # --- Header builder ---
 
-    def _build_header(self, kind: PluginKind) -> QWidget:
+    def _build_header(self, kind: PluginKind) -> ClickableHeader:
         """Construct the clickable group header row."""
-        header = QWidget()
-        header.setObjectName('pluginGroupHeader')
-        header.setStyleSheet(PLUGIN_GROUP_HEADER_STYLE)
-        header.setCursor(Qt.CursorShape.PointingHandCursor)
-        header.mousePressEvent = lambda _event: self._toggle()
+        header = ClickableHeader('pluginGroupHeader', PLUGIN_GROUP_HEADER_STYLE)
+        header.clicked.connect(self._toggle)
 
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(6)
+        header_layout = header.header_layout
 
-        self._chevron = QLabel(_CHEVRON_DOWN)
+        self._chevron = QLabel(CHEVRON_DOWN)
         self._chevron.setStyleSheet(LOG_CHEVRON_STYLE)
         self._chevron.setFixedWidth(14)
         header_layout.addWidget(self._chevron)
@@ -299,7 +286,7 @@ class PluginGroupSection(QWidget):
         """Toggle the body visibility."""
         self._expanded = not self._expanded
         self._body.setVisible(self._expanded)
-        self._chevron.setText(_CHEVRON_DOWN if self._expanded else _CHEVRON_RIGHT)
+        self._chevron.setText(CHEVRON_DOWN if self._expanded else CHEVRON_RIGHT)
 
 
 class PluginsView(QWidget):
@@ -328,12 +315,17 @@ class PluginsView(QWidget):
         self._porringer = porringer
         self._config = config
         self._groups: list[PluginGroupSection] = []
+        self._refresh_in_progress = False
         self._init_ui()
 
     def _init_ui(self) -> None:
         """Initialize the UI components."""
         outer = QVBoxLayout(self)
         outer.setContentsMargins(*COMPACT_MARGINS)
+
+        # Loading indicator (shown while data is fetched asynchronously)
+        self._loading_spinner = SpinnerWidget('Loading plugins\u2026')
+        outer.addWidget(self._loading_spinner)
 
         # Toolbar
         toolbar = QHBoxLayout()
@@ -361,56 +353,89 @@ class PluginsView(QWidget):
     # --- Public API ---
 
     def refresh(self) -> None:
-        """Rebuild the plugin sections from porringer data, grouped by kind."""
-        # Clear existing groups
-        for group in self._groups:
-            self._container_layout.removeWidget(group)
-            group.deleteLater()
-        self._groups.clear()
+        """Schedule an asynchronous rebuild of the plugin sections."""
+        if self._refresh_in_progress:
+            return
+        asyncio.ensure_future(self._async_refresh())
 
+    async def _async_refresh(self) -> None:
+        """Rebuild the plugin sections from porringer data, grouped by kind."""
+        self._refresh_in_progress = True
+        self._loading_spinner.start()
+
+        try:
+            loop = asyncio.get_running_loop()
+            plugins, packages_map = await loop.run_in_executor(None, self._fetch_plugin_data)
+
+            # Clear existing groups
+            for group in self._groups:
+                self._container_layout.removeWidget(group)
+                group.deleteLater()
+            self._groups.clear()
+
+            auto_update_map = self._config.plugin_auto_update or {}
+
+            # Bucket plugins by kind, preserving discovery order within each bucket
+            kind_buckets: OrderedDict[PluginKind, list[PluginInfo]] = OrderedDict()
+            for plugin in plugins:
+                kind_buckets.setdefault(plugin.kind, []).append(plugin)
+
+            for kind, bucket in kind_buckets.items():
+                group = PluginGroupSection(kind, parent=self._container)
+
+                for plugin in bucket:
+                    packages = packages_map.get(plugin.name, [])
+                    section = PluginsView._build_plugin_section(
+                        plugin,
+                        packages,
+                        auto_update_map,
+                        parent=group,
+                    )
+                    section.auto_update_toggled.connect(self._on_auto_update_toggled)
+                    section.update_requested.connect(self.plugin_update_requested.emit)
+                    group.add_section(section)
+
+                # Insert before the trailing stretch
+                idx = self._container_layout.count() - 1
+                self._container_layout.insertWidget(idx, group)
+                self._groups.append(group)
+        except Exception:
+            logger.exception('Failed to refresh plugins')
+        finally:
+            self._loading_spinner.stop()
+            self._refresh_in_progress = False
+
+    def _fetch_plugin_data(
+        self,
+    ) -> tuple[list[PluginInfo], dict[str, list[tuple[str, str]]]]:
+        """Fetch plugin data from porringer (runs in thread-pool executor)."""
         plugins = self._porringer.plugin.list()
         directories = self._porringer.cache.list_directories()
-        auto_update_map = self._config.plugin_auto_update or {}
-
-        # Bucket plugins by kind, preserving discovery order within each bucket
-        kind_buckets: OrderedDict[PluginKind, list[PluginInfo]] = OrderedDict()
+        packages_map: dict[str, list[tuple[str, str]]] = {}
         for plugin in plugins:
-            kind_buckets.setdefault(plugin.kind, []).append(plugin)
+            if plugin.kind in _UPDATABLE_KINDS:
+                packages_map[plugin.name] = self._gather_packages(plugin.name, directories)
+        return plugins, packages_map
 
-        for kind, bucket in kind_buckets.items():
-            group = PluginGroupSection(kind, parent=self._container)
-
-            for plugin in bucket:
-                section = self._build_plugin_section(
-                    plugin,
-                    directories,
-                    auto_update_map,
-                    parent=group,
-                )
-                section.auto_update_toggled.connect(self._on_auto_update_toggled)
-                section.update_requested.connect(self.plugin_update_requested.emit)
-                group.add_section(section)
-
-            # Insert before the trailing stretch
-            idx = self._container_layout.count() - 1
-            self._container_layout.insertWidget(idx, group)
-            self._groups.append(group)
-
+    @staticmethod
     def _build_plugin_section(
-        self,
         plugin: PluginInfo,
-        directories: list[ManifestDirectory],
+        packages: list[tuple[str, str]],
         auto_update_map: dict[str, bool],
         *,
         parent: QWidget | None = None,
     ) -> PluginSection:
         """Create a :class:`PluginSection` for a single plugin."""
-        found = plugin.installed
-        version = str(plugin.tool_version) if plugin.tool_version is not None else 'Installed' if found else 'Not found'
+        installed = plugin.installed
+        version = (
+            str(plugin.tool_version)
+            if plugin.tool_version is not None
+            else 'Installed'
+            if installed
+            else 'Not installed'
+        )
         show_controls = plugin.kind in _UPDATABLE_KINDS
         auto_update = auto_update_map.get(plugin.name, True)
-
-        packages = self._gather_packages(plugin.name, directories) if show_controls else []
 
         return PluginSection(
             PluginSectionData(
@@ -419,7 +444,7 @@ class PluginsView(QWidget):
                 packages=packages,
                 auto_update=auto_update,
                 show_controls=show_controls,
-                found=found,
+                installed=installed,
             ),
             parent=parent,
         )
@@ -490,82 +515,132 @@ class ProjectsView(QWidget):
         super().__init__(parent)
         self._porringer = porringer
         self._runner: QThread | None = None
+        self._refresh_in_progress = False
         self._init_ui()
 
     def _init_ui(self) -> None:
-        """Initialize the UI components."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(*COMPACT_MARGINS)
+        """Initialize the UI components with a grid layout.
 
-        # --- Project directory selector ---
-        selector_row = QHBoxLayout()
-        selector_row.setContentsMargins(0, 0, 0, 8)
+        The loading spinner is a floating overlay parented to ``self``
+        but **not** part of the grid, so showing/hiding it never
+        changes the geometry of the rows beneath.
+        """
+        grid = QGridLayout(self)
+        grid.setContentsMargins(*COMPACT_MARGINS)
+        grid.setVerticalSpacing(CARD_SPACING)
 
+        # Row 0 — Project directory selector
         self._combo = QComboBox()
         self._combo.setEditable(True)
         self._combo.setToolTip('Select a cached project directory or enter a new path')
         self._combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self._combo.setMinimumContentsLength(40)
         self._combo.currentIndexChanged.connect(self._on_selection_changed)
-        selector_row.addWidget(self._combo, 1)
+        grid.addWidget(self._combo, 0, 0)
+        grid.setColumnStretch(0, 1)
 
         self._browse_btn = QPushButton('Browse…')
         self._browse_btn.clicked.connect(self._on_browse)
-        selector_row.addWidget(self._browse_btn)
+        grid.addWidget(self._browse_btn, 0, 1)
 
         self._remove_btn = QPushButton('Remove')
         self._remove_btn.setToolTip('Remove the selected directory from the cache')
         self._remove_btn.clicked.connect(self._on_remove)
         self._remove_btn.setEnabled(False)
-        selector_row.addWidget(self._remove_btn)
+        grid.addWidget(self._remove_btn, 0, 2)
 
-        layout.addLayout(selector_row)
-
-        # --- Shared preview widget ---
+        # Row 1 — Shared preview widget (takes majority of space)
         self._preview = SetupPreviewWidget(self._porringer, self, show_close=False)
         self._preview.install_finished.connect(self._on_install_finished)
-        layout.addWidget(self._preview)
+        grid.addWidget(self._preview, 1, 0, 1, 3)
+        grid.setRowStretch(1, 1)
+
+        # Floating overlay spinner — not in the grid layout.
+        # Positioned in resizeEvent to cover the full widget area.
+        self._loading_spinner = SpinnerWidget('Loading projects\u2026', parent=self)
+        self._loading_spinner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._loading_spinner.raise_()
+
+    # ------------------------------------------------------------------
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        """Keep the overlay spinner filling the entire view."""
+        super().resizeEvent(event)
+        self._loading_spinner.setGeometry(self.rect())
 
     # --- Public API ---
 
     def refresh(self) -> None:
+        """Schedule an asynchronous refresh of the cached directories."""
+        if self._refresh_in_progress:
+            return
+        asyncio.ensure_future(self._async_refresh())
+
+    async def _async_refresh(self) -> None:
         """Refresh the cached directories combo box from porringer cache."""
-        self._combo.blockSignals(True)
-        current_text = self._combo.currentText()
-        self._combo.clear()
+        self._refresh_in_progress = True
+        self._loading_spinner.start()
+        self._combo.setEnabled(False)
+        self._browse_btn.setEnabled(False)
+        self._remove_btn.setEnabled(False)
 
-        directories = self._porringer.cache.list_directories()
-        for directory in directories:
-            display = str(directory.path)
-            tooltip = directory.name or ''
-            exists = Path(directory.path).is_dir()
+        try:
+            loop = asyncio.get_running_loop()
+            results: list[DirectoryValidationResult] = await loop.run_in_executor(
+                None,
+                lambda: self._porringer.cache.validate_directories(check_manifest=True),
+            )
 
-            idx = self._combo.count()
-            self._combo.addItem(display)
-            self._combo.setItemData(idx, tooltip, Qt.ItemDataRole.ToolTipRole)
-            self._combo.setItemData(idx, str(directory.path), Qt.ItemDataRole.UserRole)
+            self._combo.blockSignals(True)
+            current_text = self._combo.currentText()
+            self._combo.clear()
 
-            if not exists:
-                # Grey out entries whose directory no longer exists on disk
-                model = self._combo.model()
-                item = model.item(idx) if hasattr(model, 'item') else None
-                if isinstance(item, QStandardItem):
-                    item.setForeground(self.palette().placeholderText())
-                    item.setToolTip(f'{tooltip} \u2014 directory not found' if tooltip else 'Directory not found')
+            for result in results:
+                directory = result.directory
+                display = str(directory.path)
+                tooltip = directory.name or ''
 
-        # Restore previous selection if it still exists
-        idx = self._combo.findText(current_text)
-        if idx >= 0:
-            self._combo.setCurrentIndex(idx)
-        elif self._combo.count() > 0:
-            self._combo.setCurrentIndex(0)
+                idx = self._combo.count()
+                self._combo.addItem(display)
+                self._combo.setItemData(idx, tooltip, Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(idx, str(directory.path), Qt.ItemDataRole.UserRole)
 
-        self._combo.blockSignals(False)
-        self._update_remove_btn()
+                if not result.exists:
+                    # Grey out entries whose path no longer exists on disk
+                    self._grey_out_item(idx, tooltip, 'Path not found')
+                elif result.has_manifest is False:
+                    # Dim entries where the path exists but no manifest is found
+                    self._grey_out_item(idx, tooltip, 'No manifest found')
 
-        # Trigger preview for the current selection
-        if self._combo.currentText():
-            self._load_preview()
+            # Restore previous selection if it still exists
+            idx = self._combo.findText(current_text)
+            if idx >= 0:
+                self._combo.setCurrentIndex(idx)
+            elif self._combo.count() > 0:
+                self._combo.setCurrentIndex(0)
+
+            self._combo.blockSignals(False)
+            self._update_remove_btn()
+
+            # Trigger preview for the current selection
+            if self._combo.currentText():
+                self._load_preview()
+        except Exception:
+            logger.exception('Failed to refresh projects')
+        finally:
+            self._loading_spinner.stop()
+            self._loading_spinner.lower()  # put behind content after loading
+            self._combo.setEnabled(True)
+            self._browse_btn.setEnabled(True)
+            self._update_remove_btn()
+            self._refresh_in_progress = False
+
+    def _grey_out_item(self, idx: int, tooltip: str, reason: str) -> None:
+        """Grey out a combo box item and append a reason to its tooltip."""
+        model = self._combo.model()
+        item = model.item(idx) if hasattr(model, 'item') else None
+        if isinstance(item, QStandardItem):
+            item.setForeground(self.palette().placeholderText())
+            item.setToolTip(f'{tooltip} \u2014 {reason}' if tooltip else reason)
 
     # --- Event handlers ---
 
@@ -576,12 +651,14 @@ class ProjectsView(QWidget):
             self._load_preview()
 
     def _on_browse(self) -> None:
-        """Open a directory picker and set the combo text."""
-        chosen = QFileDialog.getExistingDirectory(
+        """Open a file picker filtered to recognised manifest filenames."""
+        filenames = self._porringer.sync.manifest_filenames()
+        filter_str = 'Manifests (' + ' '.join(filenames) + ');;All Files (*)'
+        chosen, _ = QFileDialog.getOpenFileName(
             self,
-            'Select Project Directory',
+            'Select Manifest File',
             self._combo.currentText() or '',
-            QFileDialog.Option.ShowDirsOnly,
+            filter_str,
         )
         if chosen:
             self._combo.setEditText(chosen)
@@ -624,29 +701,41 @@ class ProjectsView(QWidget):
         if not path_text:
             return
 
-        project_path = Path(path_text)
-        manifest_path = project_path / 'porringer.json'
+        selected_path = Path(path_text)
 
         self._preview.reset()
 
-        if not project_path.is_dir():
-            self._preview.show_not_found(f'Directory not found: {project_path}')
+        if not selected_path.exists():
+            self._preview.show_not_found(f'Path not found: {selected_path}')
             return
 
-        self._preview.set_project_directory(project_path)
+        if not self._porringer.sync.has_manifest(selected_path):
+            self._preview.show_not_found(f'No manifest found at: {selected_path}')
+            return
 
+        self._preview.start_loading()
+
+        # Defer project directory assignment until the preview result
+        # provides root_directory — handles both file and directory inputs.
         preview_worker = PreviewWorker(
             self._porringer,
-            str(manifest_path),
-            project_directory=project_path,
+            str(selected_path),
+            project_directory=selected_path if selected_path.is_dir() else None,
         )
-        preview_worker.preview_ready.connect(self._preview.on_preview_ready)
+        preview_worker.preview_ready.connect(self._on_preview_ready)
         preview_worker.action_checked.connect(self._preview.on_action_checked)
+        preview_worker.plugins_queried.connect(self._preview.on_plugins_queried)
         preview_worker.finished.connect(self._preview.on_preview_finished)
         preview_worker.error.connect(self._on_preview_error)
 
         self._runner = preview_worker
         self._runner.start()
+
+    def _on_preview_ready(self, preview: SetupResults, manifest_path: str, temp_dir_path: str) -> None:
+        """Set the project directory from the manifest result and forward."""
+        if preview.root_directory:
+            self._preview.set_project_directory(preview.root_directory)
+        self._preview.on_preview_ready(preview, manifest_path, temp_dir_path)
 
     def _on_preview_error(self, message: str) -> None:
         """Handle preview errors inline instead of showing a modal dialog."""
@@ -708,13 +797,13 @@ class MainWindow(QMainWindow):
 
             self.setCentralWidget(self._tabs)
 
-        # Refresh both views
+        # Paint the window immediately, then refresh data asynchronously
+        super().show()
+
         if self._plugins_view is not None:
             self._plugins_view.refresh()
         if self._projects_view is not None:
             self._projects_view.refresh()
-
-        super().show()
 
 
 class Screen:

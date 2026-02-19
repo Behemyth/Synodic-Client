@@ -108,13 +108,13 @@ class ToolUpdateWorker(QThread):
             directories = self._porringer.cache.list_directories()
             count = 0
             for directory in directories:
-                manifest = Path(directory.path) / 'porringer.json'
-                if not manifest.exists():
-                    logger.debug('Skipping missing manifest: %s', manifest)
+                path = Path(directory.path)
+                if not self._porringer.sync.has_manifest(path):
+                    logger.debug('Skipping path without manifest: %s', path)
                     continue
                 params = SetupParameters(
-                    paths=[manifest],
-                    project_directory=Path(directory.path),
+                    paths=[path],
+                    project_directory=path if path.is_dir() else None,
                     strategy=SyncStrategy.LATEST,
                     plugins=self._plugins,
                 )
@@ -507,9 +507,14 @@ class TrayScreen:
             return
 
         logger.info('Starting periodic tool update check')
+        asyncio.ensure_future(self._do_tool_update(porringer))
 
+    async def _do_tool_update(self, porringer: API) -> None:
+        """Resolve enabled plugins off-thread, then start the update worker."""
+        loop = asyncio.get_running_loop()
         config = self._resolve_config()
-        all_names = [p.name for p in porringer.plugin.list() if p.installed]
+        all_plugins = await loop.run_in_executor(None, lambda: porringer.plugin.list())  # noqa: PLW0108
+        all_names = [p.name for p in all_plugins if p.installed]
         enabled = resolve_enabled_plugins(config, all_names)
 
         worker = ToolUpdateWorker(porringer, plugins=enabled)
