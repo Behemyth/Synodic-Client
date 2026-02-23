@@ -27,6 +27,9 @@ class TestLocalConfiguration:
         assert config.auto_update_interval_minutes is None
         assert config.tool_update_interval_minutes is None
         assert config.plugin_auto_update is None
+        assert config.detect_updates is True
+        assert config.prerelease_packages is None
+        assert config.auto_start is None
 
     @staticmethod
     def test_with_values() -> None:
@@ -48,6 +51,9 @@ class TestGlobalConfiguration:
         assert config.auto_update_interval_minutes is None
         assert config.tool_update_interval_minutes is None
         assert config.plugin_auto_update is None
+        assert config.detect_updates is True
+        assert config.prerelease_packages is None
+        assert config.auto_start is None
 
     @staticmethod
     def test_with_values() -> None:
@@ -57,6 +63,15 @@ class TestGlobalConfiguration:
         assert config.update_channel == 'dev'
 
     @staticmethod
+    def test_prerelease_packages_round_trip() -> None:
+        """Verify prerelease_packages survives JSON round-trip."""
+        packages = {'/some/path': ['alpha', 'beta'], 'https://example.com/manifest.json': ['gamma']}
+        original = GlobalConfiguration(prerelease_packages=packages)
+        data = json.loads(original.model_dump_json())
+        restored = GlobalConfiguration.model_validate(data)
+        assert restored.prerelease_packages == packages
+
+    @staticmethod
     def test_plugin_auto_update_round_trip() -> None:
         """Verify plugin_auto_update survives JSON round-trip."""
         mapping = {'pipx': False, 'pip': True}
@@ -64,6 +79,15 @@ class TestGlobalConfiguration:
         data = json.loads(original.model_dump_json())
         restored = GlobalConfiguration.model_validate(data)
         assert restored.plugin_auto_update == mapping
+
+    @staticmethod
+    def test_auto_start_round_trip() -> None:
+        """Verify auto_start survives JSON round-trip."""
+        for value in (True, False, None):
+            original = GlobalConfiguration(auto_start=value)
+            data = json.loads(original.model_dump_json())
+            restored = GlobalConfiguration.model_validate(data)
+            assert restored.auto_start is value
 
     @staticmethod
     def test_json_round_trip() -> None:

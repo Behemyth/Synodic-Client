@@ -14,7 +14,7 @@ requires-python = ">=3.14, <3.15"
 dependencies = [
     "pyside6>=6.10.2",
     "packaging>=26.0",
-    "porringer>=0.2.1.dev31",
+    "porringer>=0.2.1.dev49",
     "qasync>=0.28.0",
     "velopack>=0.0.1369.dev7516",
     "typer>=0.24.0",
@@ -29,7 +29,7 @@ build = [
     "pyinstaller>=6.19.0",
 ]
 lint = [
-    "ruff>=0.15.1",
+    "ruff>=0.15.2",
     "pyrefly>=0.53.0",
 ]
 test = [
@@ -103,6 +103,11 @@ serve = "zensical serve"
 [tool.pdm.build.wheel-data]
 data = [{ path = "data/**/*", relative-to = "data/" }]
 
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "-e file:///d:/Projects/Synodic/porringer#egg=porringer",
+]
 [build-system]
 build-backend = "pdm.backend"
 requires = ["pdm.backend"]

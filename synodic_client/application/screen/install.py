@@ -4,8 +4,8 @@ Provides a reusable :class:`SetupPreviewWidget` for displaying dry-run
 previews and executing porringer setup actions, along with the standalone
 :class:`InstallPreviewWindow` used for URI-based manifest installs.
 
-Execution runs on a background ``QThread`` with a real-time
-:class:`~synodic_client.application.screen.log_panel.ExecutionLogPanel`.
+Execution runs on a background ``QThread`` with real-time inline
+log output in each :class:`~synodic_client.application.screen.action_card.ActionCard`.
 """
 
 from __future__ import annotations
@@ -28,36 +28,33 @@ from porringer.schema import (
     SetupActionResult,
     SetupParameters,
     SetupResults,
+    SkipReason,
     SubActionProgress,
+    SyncStrategy,
 )
 from porringer.schema.plugin import PluginKind
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
-    QGridLayout,
+    QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
-    QStackedWidget,
-    QTableWidget,
-    QTableWidgetItem,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from synodic_client.application.screen import ACTION_KIND_LABELS, skip_reason_label
+from synodic_client.application.screen import skip_reason_label
+from synodic_client.application.screen.action_card import ActionCardList
 from synodic_client.application.screen.card import CardFrame
-from synodic_client.application.screen.log_panel import ExecutionLogPanel
-from synodic_client.application.screen.spinner import SpinnerWidget
 from synodic_client.application.theme import (
+    ACTION_CARD_SKELETON_BAR_STYLE,
     CARD_SPACING,
     COMMAND_HEADER_STYLE,
     COMPACT_MARGINS,
@@ -68,13 +65,33 @@ from synodic_client.application.theme import (
     COPY_ICON,
     HEADER_STYLE,
     INSTALL_PREVIEW_MIN_SIZE,
+    METADATA_SKELETON_HEIGHT,
+    METADATA_SKELETON_STYLE,
     MONOSPACE_FAMILY,
     MONOSPACE_SIZE,
     MUTED_STYLE,
     NO_MARGINS,
 )
+from synodic_client.config import GlobalConfiguration, save_config
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_manifest_key(path_or_url: str) -> str:
+    """Return a canonical key for a manifest path or URL.
+
+    Local paths are resolved to absolute form so that the same manifest on
+    disk always maps to the same config entry regardless of how it was
+    referenced (relative, symlinked, etc.).  Remote URLs are returned
+    unchanged.
+    """
+    parsed = urlparse(path_or_url)
+    if parsed.scheme in {'http', 'https'}:
+        return path_or_url
+    try:
+        return str(Path(path_or_url).resolve())
+    except Exception:
+        return path_or_url
 
 
 def format_cli_command(action: SetupAction) -> str:
@@ -99,13 +116,15 @@ class InstallWorker(QThread):
     sub_progress = Signal(object, object)  # (SetupAction, SubActionProgress)
     error = Signal(str)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         porringer: API,
         manifest_path: Path,
         cancellation_token: CancellationToken,
         *,
         project_directory: Path | None = None,
+        strategy: SyncStrategy = SyncStrategy.MINIMAL,
+        prerelease_packages: set[str] | None = None,
     ) -> None:
         """Initialize the worker.
 
@@ -114,12 +133,18 @@ class InstallWorker(QThread):
             manifest_path: Path to the manifest file to execute.
             cancellation_token: Token for cooperative cancellation.
             project_directory: Working directory for project sync actions.
+            strategy: Sync strategy — ``LATEST`` when upgrades are pending.
+            prerelease_packages: Package names whose ``include_prereleases``
+                flag should be forced to ``True``, overriding the manifest
+                default.
         """
         super().__init__()
         self._porringer = porringer
         self._manifest_path = manifest_path
         self._cancellation_token = cancellation_token
         self._project_directory = project_directory
+        self._strategy = strategy
+        self._prerelease_packages = prerelease_packages
 
     def run(self) -> None:
         """Execute the setup actions on this thread's event loop."""
@@ -137,6 +162,8 @@ class InstallWorker(QThread):
         params = SetupParameters(
             paths=[self._manifest_path],
             project_directory=self._project_directory,
+            strategy=self._strategy,
+            prerelease_packages=self._prerelease_packages,
         )
         actions: list[SetupAction] = []
         collected: list[SetupActionResult] = []
@@ -207,8 +234,10 @@ class PostInstallSection(QWidget):
         # Clear previous content
         while self._content_layout.count():
             item = self._content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         commands = [(i, a) for i, a in enumerate(actions, 1) if a.kind is None]
         if not commands:
@@ -279,8 +308,8 @@ class SetupPreviewWidget(QWidget):
 
     This widget is embedded by both :class:`InstallPreviewWindow` (for
     URI-based installs) and ``ProjectsView`` (for cached-directory
-    projects).  It owns the actions table, command list, metadata display,
-    status label, and install execution pipeline.
+    projects).  It owns the action card list, command section, metadata
+    display, status label, and install execution pipeline.
 
     The caller is responsible for providing a manifest path and project
     directory.  Preview data is fed in via
@@ -294,7 +323,17 @@ class SetupPreviewWidget(QWidget):
     #: Emitted after a successful install completes.
     install_finished = Signal(object)  # SetupResults
 
-    def __init__(self, porringer: API, parent: QWidget | None = None, *, show_close: bool = True) -> None:
+    #: Emitted when per-item pre-release overrides change (debounced).
+    prerelease_changed = Signal()
+
+    def __init__(
+        self,
+        porringer: API,
+        parent: QWidget | None = None,
+        *,
+        show_close: bool = True,
+        config: GlobalConfiguration | None = None,
+    ) -> None:
         """Initialize the preview widget.
 
         Args:
@@ -302,42 +341,101 @@ class SetupPreviewWidget(QWidget):
             parent: Optional parent widget.
             show_close: Whether to show the Close button.  Set ``False``
                 when embedding inside a persistent view (e.g. a tab).
+            config: Global configuration for per-manifest pre-release state.
         """
         super().__init__(parent)
         self._porringer = porringer
         self._show_close = show_close
+        self._config = config
+        self._manifest_key: str | None = None
         self._preview: SetupResults | None = None
         self._manifest_path: Path | None = None
         self._project_directory: Path | None = None
         self._runner: QThread | None = None
         self._cancellation_token: CancellationToken | None = None
         self._completed_count = 0
+        self._checked_count = 0
         self._action_statuses: list[str] = []
-        self._action_to_table_row: dict[int, int] = {}
+        self._upgradable_rows: set[int] = set()
+        self._action_index_map: dict[int, int] = {}
         self._plugin_installed: dict[str, bool] = {}
+        self._prerelease_overrides: set[str] = set()
+        self._installing = False
+
+        # Debounce timer for per-row pre-release checkbox changes
+        self._prerelease_debounce = QTimer(self)
+        self._prerelease_debounce.setSingleShot(True)
+        self._prerelease_debounce.setInterval(500)
+        self._prerelease_debounce.timeout.connect(self._flush_prerelease_overrides)
 
         self._init_ui()
 
     # --- UI construction ---
 
-    _SPINNER_PAGE = 0
-    _CONTENT_PAGE = 1
-
     def _init_ui(self) -> None:
-        """Build the card-based grid layout.
+        """Build the two-pane layout.
 
-        The spinner and the actions card share a :class:`QStackedWidget`
-        so that switching between loading and content states never
-        changes the grid geometry — eliminating layout shifts.
+        Top pane (fixed): metadata card (or skeleton), status/phase label,
+        button bar.  Bottom pane (scrollable): :class:`ActionCardList`
+        holding one :class:`ActionCard` per action, with inline execution
+        logs and per-card spinners.  No global overlay spinner.
         """
-        grid = QGridLayout(self)
-        grid.setContentsMargins(*NO_MARGINS)
-        grid.setVerticalSpacing(CARD_SPACING)
-        grid.setHorizontalSpacing(CARD_SPACING)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(*NO_MARGINS)
+        outer.setSpacing(CARD_SPACING)
 
-        row = 0
+        # --- Metadata skeleton (shown during loading, replaced by real card) ---
+        self._metadata_skeleton = self._make_metadata_skeleton()
+        outer.addWidget(self._metadata_skeleton)
 
-        # Row 0 — Metadata card (hidden until preview metadata arrives)
+        # --- Real metadata card (hidden until preview data arrives) ---
+        self._init_metadata_card()
+        outer.addWidget(self._metadata_card)
+
+        self._status_label = QLabel()
+        outer.addWidget(self._status_label)
+
+        # --- Scrollable card list (fills remaining space) ---
+        self._card_list = ActionCardList()
+        self._card_list.prerelease_toggled.connect(self._on_prerelease_row_toggled)
+        outer.addWidget(self._card_list, stretch=1)
+
+        # Post-install section lives below the card list but still scrolls
+        self._post_install_section = PostInstallSection()
+        self._card_list._layout.insertWidget(self._card_list._layout.count() - 1, self._post_install_section)
+
+        # --- Button bar (fixed at bottom) ---
+        button_bar = self._init_button_bar()
+        outer.addLayout(button_bar)
+
+    @staticmethod
+    def _make_metadata_skeleton() -> QFrame:
+        """Create a fixed-height skeleton placeholder for the metadata card."""
+        frame = QFrame()
+        frame.setObjectName('card')
+        frame.setStyleSheet(METADATA_SKELETON_STYLE)
+        frame.setFixedHeight(METADATA_SKELETON_HEIGHT)
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        bar1 = QFrame()
+        bar1.setStyleSheet(ACTION_CARD_SKELETON_BAR_STYLE)
+        bar1.setFixedSize(140, 14)
+        layout.addWidget(bar1)
+
+        bar2 = QFrame()
+        bar2.setStyleSheet(ACTION_CARD_SKELETON_BAR_STYLE)
+        bar2.setFixedSize(260, 12)
+        layout.addWidget(bar2)
+
+        layout.addStretch()
+        frame.hide()
+        return frame
+
+    def _init_metadata_card(self) -> None:
+        """Create the metadata card (hidden until preview metadata arrives)."""
         self._metadata_card = CardFrame('Project', collapsible=True)
         self._metadata_card.hide()
 
@@ -355,67 +453,6 @@ class SetupPreviewWidget(QWidget):
         self._meta_label.setStyleSheet(MUTED_STYLE)
         self._meta_label.hide()
         self._metadata_card.content_layout.addWidget(self._meta_label)
-
-        grid.addWidget(self._metadata_card, row, 0, 1, 2)
-        row += 1
-
-        # Row 1 — Status label
-        self._status_label = QLabel()
-        grid.addWidget(self._status_label, row, 0, 1, 2)
-        row += 1
-
-        # Row 2 — Content stack: spinner (page 0) / actions card (page 1)
-        #
-        # Both pages live in the same grid cell with the same stretch,
-        # so toggling the current page causes *no* layout shift.
-        self._content_stack = QStackedWidget()
-
-        self._spinner = SpinnerWidget('Loading\u2026')
-        self._spinner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._content_stack.addWidget(self._spinner)  # page 0
-
-        self._actions_card = CardFrame()
-        self._table = self._init_actions_table()
-        self._actions_card.content_layout.addWidget(self._table)
-        self._post_install_section = PostInstallSection()
-        self._actions_card.content_layout.addWidget(self._post_install_section)
-        self._content_stack.addWidget(self._actions_card)  # page 1
-
-        self._content_stack.setCurrentIndex(self._CONTENT_PAGE)
-
-        grid.addWidget(self._content_stack, row, 0, 1, 2)
-        grid.setRowStretch(row, 2)
-        row += 1
-
-        # Row 3 — Execution log card (hidden until install starts)
-        self._log_card = CardFrame('Execution Log', collapsible=True)
-        self._log_panel = ExecutionLogPanel()
-        self._log_card.content_layout.addWidget(self._log_panel)
-        self._log_card.hide()
-        grid.addWidget(self._log_card, row, 0, 1, 2)
-        grid.setRowStretch(row, 1)
-        row += 1
-
-        # Row 4 — Button bar
-        button_bar = self._init_button_bar()
-        grid.addLayout(button_bar, row, 0, 1, 2)
-
-    def _init_actions_table(self) -> QTableWidget:
-        """Create and configure the actions table widget."""
-        table = QTableWidget()
-        table.setColumnCount(5)
-        table.setHorizontalHeaderLabels(['Type', 'Plugin', 'Package', 'Description', 'Status'])
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setAlternatingRowColors(True)
-        header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        QShortcut(QKeySequence.StandardKey.Copy, table, self._copy_table_selection)
-        return table
 
     def _init_button_bar(self) -> QHBoxLayout:
         """Create the bottom button bar."""
@@ -437,6 +474,30 @@ class SetupPreviewWidget(QWidget):
 
     # --- Public API ---
 
+    @property
+    def prerelease_overrides(self) -> set[str] | None:
+        """Return the current per-item pre-release overrides.
+
+        Returns ``None`` when no user overrides are active.  The
+        returned set contains canonical (lowered) package names.
+        """
+        return self._prerelease_overrides or None
+
+    def set_manifest_key(self, key: str) -> None:
+        """Set the manifest key and load persisted pre-release overrides.
+
+        The key is normalised so that equivalent paths always resolve
+        to the same config entry.
+
+        Args:
+            key: Manifest path or URL identifying this preview.
+        """
+        self._manifest_key = normalize_manifest_key(key)
+        if self._config is not None and self._config.prerelease_packages:
+            self._prerelease_overrides = set(self._config.prerelease_packages.get(self._manifest_key, []))
+        else:
+            self._prerelease_overrides = set()
+
     def set_project_directory(self, path: Path) -> None:
         """Set the project directory used for install execution.
 
@@ -449,37 +510,41 @@ class SetupPreviewWidget(QWidget):
         """Clear all state and UI for a fresh preview."""
         self._preview = None
         self._manifest_path = None
+        self._manifest_key = None
         self._runner = None
         self._cancellation_token = None
         self._completed_count = 0
+        self._checked_count = 0
         self._action_statuses = []
-        self._action_to_table_row = {}
+        self._upgradable_rows = set()
+        self._action_index_map = {}
         self._plugin_installed = {}
+        self._prerelease_overrides = set()
+        self._installing = False
+        self._prerelease_debounce.stop()
 
-        self._table.setRowCount(0)
+        self._card_list.clear()
         self._post_install_section.hide()
-        self._log_panel.clear()
-        self._log_card.hide()
         self._name_label.hide()
         self._description_label.hide()
         self._meta_label.hide()
         self._metadata_card.hide()
+        self._metadata_skeleton.hide()
         self._status_label.setText('')
         self._status_label.setStyleSheet('')
-        self._spinner._timer.stop()
-        self._content_stack.setCurrentIndex(self._CONTENT_PAGE)
         self._install_btn.setEnabled(False)
 
     def start_loading(self) -> None:
-        """Show the centered loading spinner.
+        """Show skeleton placeholders for the metadata card and action cards.
 
-        Switches the content stack to the spinner page and starts the
-        animation.  The grid geometry stays constant because the spinner
-        and the actions card share the same :class:`QStackedWidget` cell.
+        The metadata skeleton reserves the space that the real metadata
+        card will occupy.  Each action card skeleton shows placeholder
+        bars with a per-card spinner built in.
         """
-        self._content_stack.setCurrentIndex(self._SPINNER_PAGE)
-        self._spinner._canvas._angle = 0
-        self._spinner._timer.start()
+        self._metadata_skeleton.show()
+        self._card_list.show_skeletons(3)
+        self._status_label.setText('Downloading manifest\u2026')
+        self._status_label.setStyleSheet(MUTED_STYLE)
 
     def show_not_found(self, message: str) -> None:
         """Display a muted 'not found' message in the status label.
@@ -493,14 +558,47 @@ class SetupPreviewWidget(QWidget):
         self._status_label.setText(message)
         self._status_label.setStyleSheet(MUTED_STYLE)
 
+    # --- Per-item pre-release overrides ---
+
+    def _on_prerelease_row_toggled(self, package_name: str, checked: bool) -> None:
+        """Handle a per-row pre-release checkbox toggle."""
+        key = package_name.lower()
+        if checked:
+            self._prerelease_overrides.add(key)
+        else:
+            self._prerelease_overrides.discard(key)
+        self._prerelease_debounce.start()
+
+    def _flush_prerelease_overrides(self) -> None:
+        """Persist overrides to config and emit the changed signal.
+
+        Skips the signal emission (but still saves the config) while an
+        install is in progress to prevent the parent from reloading the
+        preview and wiping the execution log.
+        """
+        if self._config is None or self._manifest_key is None:
+            return
+
+        pkgs = self._config.prerelease_packages or {}
+        if self._prerelease_overrides:
+            pkgs[self._manifest_key] = sorted(self._prerelease_overrides)
+        else:
+            pkgs.pop(self._manifest_key, None)
+
+        self._config.prerelease_packages = pkgs if pkgs else None
+        save_config(self._config)
+        logger.info('Pre-release overrides for %s: %s', self._manifest_key, self._prerelease_overrides)
+
+        if not self._installing:
+            self.prerelease_changed.emit()
+
     # --- Preview callbacks (connect to PreviewWorker signals) ---
 
     def on_plugins_queried(self, mapping: dict[str, bool]) -> None:
-        """Store plugin presence data for annotating the preview table.
+        """Store plugin presence data for annotating the action cards.
 
-        Called before :meth:`on_preview_ready` so that
-        :meth:`_populate_table` can flag actions whose installer plugin
-        is not installed.
+        Called before :meth:`on_preview_ready` so that card population
+        can flag actions whose installer plugin is not installed.
 
         Args:
             mapping: Plugin name → installed status.
@@ -508,7 +606,7 @@ class SetupPreviewWidget(QWidget):
         self._plugin_installed = mapping
 
     def on_preview_ready(self, preview: SetupResults, manifest_path: str, temp_dir_path: str) -> None:
-        """Handle a successful preview.
+        """Handle a successful preview — populate action cards.
 
         Args:
             preview: The setup preview results.
@@ -519,41 +617,90 @@ class SetupPreviewWidget(QWidget):
         self._preview = preview
         self._manifest_path = Path(manifest_path)
         self._status_label.setStyleSheet('')
-        self._spinner._timer.stop()
-        self._content_stack.setCurrentIndex(self._CONTENT_PAGE)
+        self._metadata_skeleton.hide()
 
         self._show_metadata(preview)
 
         if not preview.actions:
+            self._card_list.clear()
             self._status_label.setText('No actions to perform — the manifest is empty.')
             return
 
-        self._action_statuses = ['Checking…'] * len(preview.actions)
-        self._status_label.setText(f'{len(preview.actions)} action(s) — checking status…')
-        self._populate_table(preview.actions)
+        self._action_statuses = ['Checking\u2026'] * len(preview.actions)
+        self._checked_count = 0
+
+        # Build the action-index → identity map for card lookup during execution
+        self._action_index_map = {id(a): i for i, a in enumerate(preview.actions)}
+
+        total = len(preview.actions)
+        self._status_label.setText(f'{total} action(s) \u2014 checking status\u2026')
+
+        self._card_list.populate(
+            preview.actions,
+            plugin_installed=self._plugin_installed,
+            prerelease_overrides=self._prerelease_overrides,
+        )
+
+        # Mark installer-missing actions as 'Not installed' in the status list
+        for i, action in enumerate(preview.actions):
+            if action.kind is None:
+                continue
+            installer_missing = (
+                action.installer is not None
+                and action.installer in self._plugin_installed
+                and not self._plugin_installed[action.installer]
+            )
+            if installer_missing:
+                self._action_statuses[i] = 'Not installed'
+
+        # Populate the post-install commands section
+        self._post_install_section.populate(preview.actions)
+
         self._install_btn.setEnabled(True)
 
+    def on_preview_resolved(self, preview: SetupResults) -> None:
+        """Handle the fully-resolved preview (CLI commands populated).
+
+        Called after ``MANIFEST_LOADED`` — cards are already visible
+        from the earlier ``on_preview_ready`` call.  This method
+        updates the CLI command display text on each existing card.
+
+        Args:
+            preview: The fully-resolved setup results with CLI commands.
+        """
+        if self._preview is None:
+            return
+
+        for action in preview.actions:
+            if action.cli_command:
+                card = self._card_list.get_card(action)
+                if card is not None:
+                    card.update_command(action)
+
     def on_action_checked(self, row: int, result: SetupActionResult) -> None:
-        """Update the data model and table row with the dry-run result."""
-        label = skip_reason_label(result.skip_reason) if result.skipped else 'Needed'
+        """Update the data model and action card with the dry-run result."""
+        if result.skipped and result.skip_reason == SkipReason.UPDATE_AVAILABLE:
+            label = skip_reason_label(result.skip_reason)
+            self._upgradable_rows.add(row)
+        elif result.skipped:
+            label = skip_reason_label(result.skip_reason)
+        else:
+            label = 'Needed'
 
         if 0 <= row < len(self._action_statuses):
             self._action_statuses[row] = label
 
-        # Command actions are not shown in the table.
-        table_row = self._action_to_table_row.get(row)
-        if table_row is None:
-            return
+        # Find the card for this action
+        if self._preview and 0 <= row < len(self._preview.actions):
+            action = self._preview.actions[row]
+            card = self._card_list.get_card(action)
+            if card is not None:
+                card.set_check_result(result)
 
-        item = self._table.item(table_row, 4)
-        if item is None:
-            return
-
-        item.setText(label)
-        if result.skipped:
-            item.setForeground(self.palette().placeholderText())
-        else:
-            item.setForeground(self.palette().text())
+        # Update phase text with progress count
+        self._checked_count += 1
+        total = len(self._action_statuses)
+        self._status_label.setText(f'{total} action(s) \u2014 checking status ({self._checked_count}/{total})\u2026')
 
     def on_preview_finished(self) -> None:
         """Finalize the preview after the dry-run check completes."""
@@ -562,40 +709,41 @@ class SetupPreviewWidget(QWidget):
 
         # Resolve any still-pending statuses as 'Needed', but leave
         # 'Not installed' entries untouched — they indicate a missing plugin.
+        self._card_list.finalize_all_checking()
+
         for i, status in enumerate(self._action_statuses):
-            if status == 'Checking…':
+            if status == 'Checking\u2026':
                 self._action_statuses[i] = 'Needed'
-                table_row = self._action_to_table_row.get(i)
-                if table_row is not None:
-                    item = self._table.item(table_row, 4)
-                    if item is not None:
-                        item.setText('Needed')
-                        item.setForeground(self.palette().text())
 
         # Count ALL actions (including bare commands) for enablement.
         total = len(self._action_statuses)
         needed = sum(1 for s in self._action_statuses if s == 'Needed')
+        upgradable = len(self._upgradable_rows)
         unavailable = sum(1 for s in self._action_statuses if s == 'Not installed')
-        satisfied = total - needed - unavailable
+        satisfied = total - needed - upgradable - unavailable
 
         parts: list[str] = []
         if needed:
             parts.append(f'{needed} needed')
+        if upgradable:
+            parts.append(f'{upgradable} upgradable')
         if satisfied:
             parts.append(f'{satisfied} already satisfied')
         if unavailable:
             parts.append(f'{unavailable} unavailable (plugin not installed)')
 
-        if needed == 0 and unavailable == 0:
-            self._status_label.setText(f'{total} action(s) — all already satisfied.')
+        actionable = needed + upgradable
+        if actionable == 0 and unavailable == 0:
+            self._status_label.setText(f'{total} action(s) \u2014 all already satisfied.')
             self._install_btn.setEnabled(False)
         else:
             self._status_label.setText(f'{total} action(s): {", ".join(parts)}.')
 
         logger.info(
-            'Preview complete: %d total, %d needed, %d satisfied, %d unavailable',
+            'Preview complete: %d total, %d needed, %d upgradable, %d satisfied, %d unavailable',
             total,
             needed,
+            upgradable,
             satisfied,
             unavailable,
         )
@@ -603,8 +751,8 @@ class SetupPreviewWidget(QWidget):
     def on_preview_error(self, message: str) -> None:
         """Handle a preview error."""
         logger.error('Preview failed: %s', message)
-        self._spinner._timer.stop()
-        self._content_stack.setCurrentIndex(self._CONTENT_PAGE)
+        self._metadata_skeleton.hide()
+        self._card_list.clear()
         self._status_label.setText('')
         QMessageBox.critical(self, 'Preview Failed', message)
         self.close_requested.emit()
@@ -640,62 +788,6 @@ class SetupPreviewWidget(QWidget):
         if has_content:
             self._metadata_card.show()
 
-    # --- Table ---
-
-    def _copy_table_selection(self) -> None:
-        """Copy selected table rows to the clipboard as tab-separated text."""
-        rows = sorted({idx.row() for idx in self._table.selectedIndexes()})
-        if not rows:
-            return
-        cols = self._table.columnCount()
-        lines = [
-            '\t'.join((item.text() if (item := self._table.item(r, c)) else '') for c in range(cols)) for r in rows
-        ]
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText('\n'.join(lines))
-
-    def _populate_table(self, actions: list[SetupAction]) -> None:
-        """Fill the actions table and post-install section from *actions*.
-
-        Command actions (``kind is None``) are excluded from the table
-        because they cannot be dry-run checked — they always appear as
-        *Needed* which is misleading.  They are shown in the dedicated
-        :class:`PostInstallSection` instead.
-
-        Actions whose installer plugin is not installed are immediately
-        flagged as *Not installed* so the user knows the plugin must be
-        set up before the action can succeed.
-        """
-        self._action_to_table_row = {}
-        table_actions = [(i, a) for i, a in enumerate(actions) if a.kind is not None]
-        self._table.setRowCount(len(table_actions))
-        for table_row, (action_idx, action) in enumerate(table_actions):
-            self._action_to_table_row[action_idx] = table_row
-            self._table.setItem(table_row, 0, QTableWidgetItem(ACTION_KIND_LABELS.get(action.kind, 'Action')))
-            self._table.setItem(table_row, 1, QTableWidgetItem(action.installer or ''))
-            self._table.setItem(table_row, 2, QTableWidgetItem(str(action.package) if action.package else ''))
-            self._table.setItem(table_row, 3, QTableWidgetItem(action.package_description or action.description))
-
-            # Check whether the installer plugin is present on the system.
-            installer_missing = (
-                action.installer is not None
-                and action.installer in self._plugin_installed
-                and not self._plugin_installed[action.installer]
-            )
-
-            if installer_missing:
-                status_item = QTableWidgetItem('Not installed')
-                self._action_statuses[action_idx] = 'Not installed'
-            else:
-                status_item = QTableWidgetItem('Checking…')
-
-            status_item.setForeground(self.palette().placeholderText())
-            self._table.setItem(table_row, 4, status_item)
-
-        # Populate the always-visible post-install commands section
-        self._post_install_section.populate(actions)
-
     # --- Install execution ---
 
     def _on_install(self) -> None:
@@ -703,16 +795,19 @@ class SetupPreviewWidget(QWidget):
         if self._manifest_path is None:
             return
 
+        self._installing = True
+        self._prerelease_debounce.stop()
         self._install_btn.setEnabled(False)
         self._close_btn.setEnabled(False)
         self._completed_count = 0
 
         self._cancellation_token = CancellationToken()
 
-        # Show the execution log card below the actions card
-        self._log_panel.clear()
-        self._log_card.show()
-        self._status_label.setText('Installing…')
+        self._status_label.setText('Installing\u2026')
+
+        # Choose LATEST strategy when there are upgradable actions so
+        # porringer actually upgrades the already-installed packages.
+        strategy = SyncStrategy.LATEST if self._upgradable_rows else SyncStrategy.MINIMAL
 
         # Worker thread
         worker = InstallWorker(
@@ -720,6 +815,8 @@ class SetupPreviewWidget(QWidget):
             self._manifest_path,
             self._cancellation_token,
             project_directory=self._project_directory,
+            strategy=strategy,
+            prerelease_packages=self._prerelease_overrides or None,
         )
         worker.action_started.connect(self._on_action_started)
         worker.sub_progress.connect(self._on_sub_progress)
@@ -731,48 +828,38 @@ class SetupPreviewWidget(QWidget):
         self._runner.start()
 
     def _on_action_started(self, action: SetupAction) -> None:
-        """Handle an action starting execution — create a log section."""
-        self._log_panel.add_section(action)
+        """Handle an action starting execution — expand its card inline."""
+        card = self._card_list.get_card(action)
+        if card is not None:
+            card.set_executing()
+            self._card_list.scroll_to_card(card)
 
     def _on_sub_progress(self, action: SetupAction, progress: SubActionProgress) -> None:
-        """Handle a sub-action progress event — route to the log panel."""
-        self._log_panel.on_sub_progress(action, progress)
+        """Handle a sub-action progress event — route output to the card."""
+        card = self._card_list.get_card(action)
+        if card is None:
+            return
+
+        if progress.output is not None:
+            card.append_output(progress.output, progress.stream)
+        elif progress.message is not None:
+            card.append_output(progress.message)
+
+        # Follow the growing log — keep the bottom of the card in view.
+        self._card_list.scroll_to_card_bottom(card)
 
     def _on_action_progress(self, action: SetupAction, result: SetupActionResult) -> None:
         """Handle a single action completion from the worker."""
         self._completed_count += 1
 
-        # Update the execution log panel
-        self._log_panel.on_action_completed(action, result)
-
-        # Map the action back to its table row (commands have no table row)
-        if self._preview:
-            for idx, a in enumerate(self._preview.actions):
-                if a is action:
-                    table_row = self._action_to_table_row.get(idx)
-                    if table_row is not None:
-                        self._update_table_status(table_row, result)
-                    break
+        # Update the action card inline
+        card = self._card_list.get_card(action)
+        if card is not None:
+            card.set_result(result)
 
         # Update status label
         total = len(self._preview.actions) if self._preview else 0
-        self._status_label.setText(f'Installing… ({self._completed_count}/{total})')
-
-    def _update_table_status(self, row: int, result: SetupActionResult) -> None:
-        """Update the status cell for a table row from an action result."""
-        item = self._table.item(row, 4)
-        if item is None:
-            return
-
-        if result.skipped:
-            item.setText(skip_reason_label(result.skip_reason))
-            item.setForeground(self.palette().placeholderText())
-        elif result.success:
-            item.setText('Done')
-            item.setForeground(self.palette().text())
-        else:
-            item.setText(f'Failed: {result.message}' if result.message else 'Failed')
-            item.setForeground(self.palette().text())
+        self._status_label.setText(f'Installing\u2026 ({self._completed_count}/{total})')
 
     def _on_cancel(self) -> None:
         """Handle cancel request."""
@@ -781,6 +868,8 @@ class SetupPreviewWidget(QWidget):
 
     def _on_install_finished(self, results: SetupResults) -> None:
         """Handle install completion."""
+        self._installing = False
+
         succeeded = sum(1 for r in results.results if r.success and not r.skipped)
         skipped = sum(1 for r in results.results if r.skipped)
         failed = sum(1 for r in results.results if not r.success)
@@ -794,13 +883,14 @@ class SetupPreviewWidget(QWidget):
             parts.append(f'{failed} failed')
 
         summary = ', '.join(parts) if parts else 'No actions executed.'
-        self._status_label.setText(f'Done — {summary}')
+        self._status_label.setText(f'Done \u2014 {summary}')
         self._install_btn.setEnabled(False)
         self._close_btn.setEnabled(True)
         self.install_finished.emit(results)
 
     def _on_install_error(self, message: str) -> None:
         """Handle install error."""
+        self._installing = False
         self._status_label.setText(f'Install failed: {message}')
         self._install_btn.setEnabled(True)
         self._close_btn.setEnabled(True)
@@ -818,17 +908,27 @@ class InstallPreviewWindow(QMainWindow):
     (temp directory, ``PreviewWorker``).
     """
 
-    def __init__(self, porringer: API, manifest_url: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        porringer: API,
+        manifest_url: str,
+        parent: QWidget | None = None,
+        *,
+        config: GlobalConfiguration | None = None,
+    ) -> None:
         """Initialize the install preview window.
 
         Args:
             porringer: The porringer API instance.
             manifest_url: The URL of the manifest to install.
             parent: Optional parent widget.
+            config: Resolved global configuration for per-manifest pre-release
+                state and update detection flags.
         """
         super().__init__(parent)
         self._porringer = porringer
         self._manifest_url = manifest_url
+        self._config = config or GlobalConfiguration()
         self._temp_dir_path: str | None = None
         self._runner: QThread | None = None
 
@@ -859,8 +959,9 @@ class InstallPreviewWindow(QMainWindow):
         layout.addWidget(source_card)
 
         # Shared preview widget
-        self._preview_widget = SetupPreviewWidget(self._porringer, self)
+        self._preview_widget = SetupPreviewWidget(self._porringer, self, config=self._config)
         self._preview_widget.close_requested.connect(self.close)
+        self._preview_widget.prerelease_changed.connect(self._on_prerelease_changed)
         self._preview_widget.set_project_directory(self._project_directory)
         layout.addWidget(self._preview_widget)
 
@@ -925,12 +1026,25 @@ class InstallPreviewWindow(QMainWindow):
 
         Call this after ``show()`` to begin the download → preview flow.
         """
+        self._stop_preview()
         logger.info('Starting install preview for: %s', self._manifest_url)
         self._url_label.setText(f'<b>Manifest:</b> {self._manifest_url}')
+        self._preview_widget.reset()
         self._preview_widget.start_loading()
+        self._preview_widget.set_manifest_key(self._manifest_url)
 
-        preview_worker = PreviewWorker(self._porringer, self._manifest_url, project_directory=self._project_directory)
+        manifest_key = normalize_manifest_key(self._manifest_url)
+        overrides = set((self._config.prerelease_packages or {}).get(manifest_key, []))
 
+        preview_worker = PreviewWorker(
+            self._porringer,
+            self._manifest_url,
+            project_directory=self._project_directory,
+            detect_updates=self._config.detect_updates,
+            prerelease_packages=overrides or None,
+        )
+
+        preview_worker.manifest_parsed.connect(self._on_manifest_parsed)
         preview_worker.plugins_queried.connect(self._preview_widget.on_plugins_queried)
         preview_worker.preview_ready.connect(self._on_preview_ready)
         preview_worker.action_checked.connect(self._preview_widget.on_action_checked)
@@ -940,10 +1054,10 @@ class InstallPreviewWindow(QMainWindow):
         self._runner = preview_worker
         self._runner.start()
 
-    # --- Preview callback (intercepts to capture temp dir) ---
+    # --- Preview callbacks (intercept to capture temp dir / metadata) ---
 
-    def _on_preview_ready(self, preview: SetupResults, manifest_path: str, temp_dir_path: str) -> None:
-        """Capture the temp dir path and forward to the preview widget."""
+    def _on_manifest_parsed(self, preview: SetupResults, manifest_path: str, temp_dir_path: str) -> None:
+        """Handle the fast MANIFEST_PARSED event — show cards immediately."""
         self._temp_dir_path = temp_dir_path
 
         # Update window title from metadata
@@ -952,6 +1066,33 @@ class InstallPreviewWindow(QMainWindow):
 
         self._preview_widget.on_preview_ready(preview, manifest_path, temp_dir_path)
 
+    def _on_preview_ready(self, preview: SetupResults, manifest_path: str, temp_dir_path: str) -> None:
+        """Handle the fully-resolved MANIFEST_LOADED event.
+
+        At this point CLI commands are populated on each action.  We
+        forward to the preview widget so it can refresh any command
+        display text, but cards are already visible from the earlier
+        ``_on_manifest_parsed`` handler.
+        """
+        self._temp_dir_path = temp_dir_path
+
+        # Update window title from metadata (in case it changed)
+        if preview.metadata and preview.metadata.name:
+            self.setWindowTitle(f'Install Preview — {preview.metadata.name}')
+
+        self._preview_widget.on_preview_resolved(preview)
+
+    def _on_prerelease_changed(self) -> None:
+        """Re-run the preview with the updated pre-release setting."""
+        self.start()
+
+    def _stop_preview(self) -> None:
+        """Wait for any running preview worker to finish before starting a new one."""
+        if self._runner is not None and self._runner.isRunning():
+            self._runner.quit()
+            self._runner.wait()
+            self._runner = None
+
 
 class PreviewWorker(QThread):
     """Background worker that downloads a manifest and performs a dry-run.
@@ -959,21 +1100,53 @@ class PreviewWorker(QThread):
     Combines two stages into a single background pipeline:
 
     1. Download the manifest (if remote).
-    2. Run ``execute_stream`` with ``dry_run=True`` to list actions and check status.
+    2. Run ``execute_stream`` with ``dry_run=True`` to stream events.
+
+    The worker emits signals in phases:
+
+    * ``manifest_parsed`` — emitted as soon as the JSON is loaded,
+      before plugin discovery.  GUI clients can populate cards
+      immediately from this.
+    * ``plugins_queried`` — emitted after porringer discovers plugins,
+      carrying plugin name → installed mapping.
+    * ``preview_ready`` — emitted once CLI commands are resolved.
+    * ``action_checked`` — emitted per-action as dry-run results
+      stream in (may arrive out of order due to parallel checks).
     """
 
-    preview_ready = Signal(object, str, str)  # (SetupResults, manifest_path, temp_dir_path)
+    manifest_parsed = Signal(object, str, str)  # (SetupResults, manifest_path, temp_dir_path) — fast preview
+    preview_ready = Signal(object, str, str)  # (SetupResults, manifest_path, temp_dir_path) — fully resolved
     action_checked = Signal(int, object)  # (row_index, SetupActionResult)
     plugins_queried = Signal(object)  # dict[str, bool] — plugin name → installed
     finished = Signal()
     error = Signal(str)
 
-    def __init__(self, porringer: API, url: str, *, project_directory: Path | None = None) -> None:
-        """Initialize the preview worker."""
+    def __init__(
+        self,
+        porringer: API,
+        url: str,
+        *,
+        project_directory: Path | None = None,
+        detect_updates: bool = True,
+        prerelease_packages: set[str] | None = None,
+    ) -> None:
+        """Initialize the preview worker.
+
+        Args:
+            porringer: The porringer API instance.
+            url: Manifest URL or local path.
+            project_directory: Working directory for project sync actions.
+            detect_updates: Query package indices for newer versions.
+            prerelease_packages: Package names whose ``include_prereleases``
+                flag should be forced to ``True``, overriding the manifest
+                default.
+        """
         super().__init__()
         self._porringer = porringer
         self._url = url
         self._project_directory = project_directory
+        self._detect_updates = detect_updates
+        self._prerelease_packages = prerelease_packages
 
     def run(self) -> None:
         """Download the manifest and perform a dry-run to check status."""
@@ -1013,23 +1186,50 @@ class PreviewWorker(QThread):
             self.error.emit(str(exc))
 
     async def _dry_run(self, manifest_path: Path, temp_dir: str) -> None:
-        """Stream dry-run events, emitting preview_ready and action_checked signals."""
-        # Query plugin presence before the dry-run so the widget can
-        # annotate actions whose installer is not available.
-        plugins = self._porringer.plugin.list()
-        plugin_installed = {p.name: p.installed for p in plugins}
-        self.plugins_queried.emit(plugin_installed)
+        """Stream dry-run events, emitting signals as each phase completes.
 
+        The new event pipeline is:
+
+        1. ``MANIFEST_PARSED`` → emit ``manifest_parsed`` (fast, before discovery)
+        2. ``PLUGINS_DISCOVERED`` → emit ``plugins_queried``
+        3. ``MANIFEST_LOADED`` → emit ``preview_ready`` (CLI commands populated)
+        4. ``ACTION_COMPLETED`` → emit ``action_checked`` (per-action status)
+
+        Falls back to the previous behaviour when the porringer version
+        does not emit the newer event kinds (``MANIFEST_PARSED`` /
+        ``PLUGINS_DISCOVERED``).
+        """
         params = SetupParameters(
             paths=[manifest_path],
             dry_run=True,
             project_directory=self._project_directory,
+            detect_updates=self._detect_updates,
+            prerelease_packages=self._prerelease_packages,
         )
         action_index: dict[int, int] = {}
+        got_parsed = False
 
         async for event in self._porringer.sync.execute_stream(params):
-            if event.kind == ProgressEventKind.MANIFEST_LOADED and event.manifest:
+            if event.kind == ProgressEventKind.MANIFEST_PARSED and event.manifest:
+                # Fast path: cards can be shown immediately
                 action_index = {id(a): i for i, a in enumerate(event.manifest.actions)}
+                self.manifest_parsed.emit(event.manifest, str(manifest_path), temp_dir)
+                got_parsed = True
+
+            elif event.kind == ProgressEventKind.PLUGINS_DISCOVERED:
+                # Use the plugin availability from porringer's own discovery
+                # rather than making a separate plugin.list() call.
+                if event.plugin_availability is not None:
+                    self.plugins_queried.emit(event.plugin_availability)
+                elif event.plugin_names is not None:
+                    # Fallback: only names available, assume all installed
+                    self.plugins_queried.emit({name: True for name in event.plugin_names})
+
+            elif event.kind == ProgressEventKind.MANIFEST_LOADED and event.manifest:
+                # Fully-resolved preview with CLI commands
+                if not got_parsed:
+                    # Fallback: older porringer without MANIFEST_PARSED
+                    action_index = {id(a): i for i, a in enumerate(event.manifest.actions)}
                 self.preview_ready.emit(event.manifest, str(manifest_path), temp_dir)
 
             elif event.kind == ProgressEventKind.ACTION_COMPLETED and event.result and event.action:

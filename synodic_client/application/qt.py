@@ -24,7 +24,8 @@ from synodic_client.client import Client
 from synodic_client.config import GlobalConfiguration, set_dev_mode
 from synodic_client.logging import configure_logging
 from synodic_client.protocol import register_protocol
-from synodic_client.resolution import resolve_config, resolve_update_config
+from synodic_client.resolution import resolve_auto_start, resolve_config, resolve_update_config
+from synodic_client.startup import register_startup, remove_startup
 from synodic_client.updater import initialize_velopack
 
 
@@ -135,6 +136,12 @@ def application(*, uri: str | None = None, dev_mode: bool = False) -> None:
         initialize_velopack()
         register_protocol(sys.executable)
 
+        startup_config = resolve_config()
+        if resolve_auto_start(startup_config):
+            register_startup(sys.executable)
+        else:
+            remove_startup()
+
     if uri:
         logger.info('Received URI: %s', uri)
 
@@ -159,7 +166,11 @@ def application(*, uri: str | None = None, dev_mode: bool = False) -> None:
 
     def _handle_install_uri(manifest_url: str) -> None:
         logger.info('Opening install preview for: %s', manifest_url)
-        window = InstallPreviewWindow(porringer, manifest_url)
+        window = InstallPreviewWindow(
+            porringer,
+            manifest_url,
+            config=config,
+        )
         _install_windows.append(window)
         window.show()
         window.raise_()
