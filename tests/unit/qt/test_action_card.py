@@ -664,7 +664,7 @@ class TestActionCardCommandLabel:
         action = _make_action(package='ruff', installer='pip')
         card.populate(action)
         assert card._command_label.text() == 'pip install ruff'
-        assert not card._command_label.isHidden()
+        assert not card._command_row.isHidden()
 
     @staticmethod
     def test_explicit_cli_command() -> None:
@@ -694,22 +694,22 @@ class TestActionCardCommandLabel:
         resolved = _make_action(cli_command=['uv', 'tool', 'install', 'ruff'])
         card.update_command(resolved)
         assert card._command_label.text() == 'uv tool install ruff'
-        assert not card._command_label.isHidden()
+        assert not card._command_row.isHidden()
 
     @staticmethod
     def test_update_command_hides_label_when_empty() -> None:
-        """update_command hides the label when the resolved action has no command."""
+        """update_command hides the row when the resolved action has no command."""
         card = ActionCard()
         action = _make_action(package='ruff', installer='pip')
         card.populate(action)
-        assert not card._command_label.isHidden()
+        assert not card._command_row.isHidden()
 
         empty_action = _make_action(kind=PluginKind.RUNTIME)
         empty_action.cli_command = None
         empty_action.command = None
         empty_action.package = None
         card.update_command(empty_action)
-        assert card._command_label.isHidden()
+        assert card._command_row.isHidden()
 
     @staticmethod
     def test_update_command_noop_on_skeleton() -> None:
@@ -718,6 +718,29 @@ class TestActionCardCommandLabel:
         action = _make_action(cli_command=['uv', 'tool', 'install', 'ruff'])
         # Should not raise — skeleton simply returns early
         card.update_command(action)
+
+    @staticmethod
+    def test_copy_button_copies_command(monkeypatch: object) -> None:
+        """Clicking the copy button copies the command text to the clipboard."""
+        card = ActionCard()
+        action = _make_action(cli_command=['uv', 'tool', 'install', 'ruff'])
+        card.populate(action)
+
+        clipboard = QApplication.clipboard()
+        assert clipboard is not None
+        clipboard.clear()
+        card._copy_btn.click()
+        assert clipboard.text() == 'uv tool install ruff'
+
+    @staticmethod
+    def test_copy_button_shows_feedback() -> None:
+        """Clicking copy shows a check-mark on the button."""
+        card = ActionCard()
+        action = _make_action(cli_command=['uv', 'tool', 'install', 'ruff'])
+        card.populate(action)
+
+        card._copy_btn.click()
+        assert card._copy_btn.text() == '\u2713'
 
 
 # ---------------------------------------------------------------------------
@@ -806,18 +829,11 @@ class TestActionSortKey:
         assert action_sort_key(package) < action_sort_key(tool)
 
     @staticmethod
-    def test_alphabetical_within_kind() -> None:
-        """Same-kind actions are sorted alphabetically by package name."""
+    def test_same_kind_returns_equal_key() -> None:
+        """Same-kind actions get equal sort keys so stable sort preserves order."""
         alpha = _make_action(package='alpha')
         beta = _make_action(package='beta')
-        assert action_sort_key(alpha) < action_sort_key(beta)
-
-    @staticmethod
-    def test_case_insensitive() -> None:
-        """Package name comparison is case-insensitive."""
-        upper = _make_action(package='Alpha')
-        lower = _make_action(package='alpha')
-        assert action_sort_key(upper) == action_sort_key(lower)
+        assert action_sort_key(alpha) == action_sort_key(beta)
 
 
 # ---------------------------------------------------------------------------
@@ -829,19 +845,21 @@ class TestActionCardListOrdering:
     """Tests for card ordering in ActionCardList."""
 
     @staticmethod
-    def test_cards_sorted_by_kind_then_name() -> None:
-        """Cards are sorted by kind priority, then alphabetically."""
+    def test_cards_grouped_by_kind_preserving_order() -> None:
+        """Cards are grouped by execution phase, preserving porringer order within."""
         card_list = ActionCardList()
         a_pkg_b = _make_action(kind=PluginKind.PACKAGE, package='beta')
         a_tool = _make_action(kind=PluginKind.TOOL, package='ruff')
         a_pkg_a = _make_action(kind=PluginKind.PACKAGE, package='alpha')
         a_runtime = _make_action(kind=PluginKind.RUNTIME, package='python')
 
-        # Populate in unsorted order
+        # Populate in porringer's execution order
         card_list.populate([a_pkg_b, a_tool, a_pkg_a, a_runtime])
 
-        # Execution-phase order: RUNTIME(0) → PACKAGE(1) → TOOL(2)
-        expected = ['python', 'alpha', 'beta', 'ruff']
+        # Grouped by phase: RUNTIME(0) → PACKAGE(1) → TOOL(2)
+        # Within PACKAGE group, original (porringer) order is preserved:
+        # beta came before alpha in the input list.
+        expected = ['python', 'beta', 'alpha', 'ruff']
         assert card_list.card_count() == len(expected)
         for i, name in enumerate(expected):
             card = card_list.card_at(i)

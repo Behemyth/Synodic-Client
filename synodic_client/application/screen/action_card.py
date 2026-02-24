@@ -14,11 +14,13 @@ from __future__ import annotations
 import html as html_mod
 import logging
 
+from porringer.backend.command.core.action_builder import PHASE_ORDER
 from porringer.schema import SetupAction, SetupActionResult, SkipReason
 from porringer.schema.plugin import PluginKind
 from PySide6.QtCore import QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QTextCursor
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QFrame,
     QHBoxLayout,
@@ -26,6 +28,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -53,6 +56,10 @@ from synodic_client.application.theme import (
     ACTION_CARD_STYLE,
     ACTION_CARD_TYPE_BADGE_STYLE,
     ACTION_CARD_VERSION_STYLE,
+    COPY_BTN_SIZE,
+    COPY_BTN_STYLE,
+    COPY_FEEDBACK_MS,
+    COPY_ICON,
     LOG_COLOR_ERROR,
     LOG_COLOR_PHASE,
     LOG_COLOR_STDERR,
@@ -74,19 +81,9 @@ _SPINNER_INTERVAL = 50
 _SPINNER_ARC = 90
 
 
-#: Sort priority for each :class:`PluginKind`.
-#: Lower numbers appear first.  Matches the execution phase order
-#: defined in ``porringer.backend.command.core.action_builder.PHASE_ORDER``
-#: so that cards are displayed in the same order they execute:
-#: runtime → package → tool → project → SCM.
-_KIND_ORDER: dict[PluginKind | None, int] = {
-    PluginKind.RUNTIME: 0,
-    PluginKind.PACKAGE: 1,
-    PluginKind.TOOL: 2,
-    PluginKind.PROJECT: 3,
-    PluginKind.SCM: 4,
-    None: 99,  # bare commands are excluded from ActionCardList anyway
-}
+#: Sort priority derived from porringer's execution phase order so the
+#: display order always matches the order actions actually execute.
+_KIND_ORDER: dict[PluginKind | None, int] = {kind: i for i, kind in enumerate(PHASE_ORDER)}
 
 
 def action_key(action: SetupAction) -> tuple[object, ...]:
@@ -102,17 +99,17 @@ def action_key(action: SetupAction) -> tuple[object, ...]:
     return (action.kind, action.installer, pkg_name, pt_name, cmd)
 
 
-def action_sort_key(action: SetupAction) -> tuple[int, str]:
-    """Return a sort key so cards are grouped by kind then alphabetical.
+def action_sort_key(action: SetupAction) -> int:
+    """Return a sort key that groups cards by execution phase.
 
-    The ordering matches the execution phase order
-    (runtime → package → tool → project → SCM) so that displayed
-    cards appear in the same sequence as they execute.  Within a
-    group, actions are sorted case-insensitively by package name.
+    The ordering is derived from :data:`porringer.backend.command.core.
+    action_builder.PHASE_ORDER` so that displayed cards appear in the
+    same sequence as they execute.  Within a phase group the original
+    order from porringer is preserved (Python sort is stable), which
+    respects dependency ordering (e.g. a tool must be installed before
+    its plugins).
     """
-    kind_order = _KIND_ORDER.get(action.kind, 50)
-    pkg_name = str(action.package.name).lower() if action.package else ''
-    return (kind_order, pkg_name)
+    return _KIND_ORDER.get(action.kind, len(PHASE_ORDER))
 
 
 def _format_command(action: SetupAction) -> str:
@@ -284,7 +281,13 @@ class ActionCard(QFrame):
         outer.setContentsMargins(6, 6, 6, 6)
         outer.setSpacing(2)
 
-        # --- Top row: type badge | package name ... version | status/spinner | prerelease ---
+        outer.addLayout(self._build_top_row())
+        outer.addWidget(self._build_description_row())
+        outer.addWidget(self._build_command_row())
+        outer.addWidget(self._build_log_output())
+
+    def _build_top_row(self) -> QHBoxLayout:
+        """Build the top row: type badge | package name ... version | status/spinner | prerelease."""
         top = QHBoxLayout()
         top.setSpacing(8)
 
@@ -317,24 +320,45 @@ class ActionCard(QFrame):
         self._prerelease_cb.hide()
         top.addWidget(self._prerelease_cb)
 
-        outer.addLayout(top)
+        return top
 
-        # --- Description row ---
+    def _build_description_row(self) -> QLabel:
+        """Build the description label."""
         self._desc_label = QLabel()
         self._desc_label.setStyleSheet(ACTION_CARD_DESC_STYLE)
         self._desc_label.setWordWrap(True)
-        outer.addWidget(self._desc_label)
+        return self._desc_label
 
-        # --- CLI command row (always visible, muted monospace) ---
+    def _build_command_row(self) -> QWidget:
+        """Build the CLI command row with copy button."""
+        self._command_row = QWidget()
+        cmd_layout = QHBoxLayout(self._command_row)
+        cmd_layout.setContentsMargins(0, 0, 0, 0)
+        cmd_layout.setSpacing(4)
+
         self._command_label = QLabel()
         self._command_label.setStyleSheet(ACTION_CARD_COMMAND_STYLE)
         self._command_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse,
         )
-        self._command_label.hide()
-        outer.addWidget(self._command_label)
+        cmd_layout.addWidget(self._command_label)
 
-        # --- Inline log body (hidden by default) ---
+        self._copy_btn = QToolButton()
+        self._copy_btn.setText(COPY_ICON)
+        self._copy_btn.setToolTip('Copy to clipboard')
+        self._copy_btn.setFixedSize(*COPY_BTN_SIZE)
+        self._copy_btn.setStyleSheet(COPY_BTN_STYLE)
+        self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._copy_btn.clicked.connect(self._copy_command)
+        cmd_layout.addWidget(self._copy_btn)
+
+        cmd_layout.addStretch()
+
+        self._command_row.hide()
+        return self._command_row
+
+    def _build_log_output(self) -> QTextEdit:
+        """Build the inline log body (hidden by default)."""
         self._log_output = QTextEdit()
         self._log_output.setReadOnly(True)
         self._log_output.setFont(QFont(MONOSPACE_FAMILY, MONOSPACE_SIZE))
@@ -343,15 +367,18 @@ class ActionCard(QFrame):
         self._log_output.setMaximumHeight(250)
         self._log_output.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._log_output.hide()
-        outer.addWidget(self._log_output)
+        return self._log_output
 
     # ------------------------------------------------------------------
     # Mouse events (toggle log)
     # ------------------------------------------------------------------
 
-    def mousePressEvent(self, _event: object) -> None:  # noqa: N802
+    def mousePressEvent(self, event: object) -> None:  # noqa: N802
         """Toggle the inline log body on click."""
         if self._is_skeleton or not hasattr(self, '_log_output'):
+            return
+        # Don't toggle the log when clicking the copy button
+        if hasattr(self, '_copy_btn') and self._copy_btn.underMouse():
             return
         self._toggle_log()
 
@@ -359,6 +386,23 @@ class ActionCard(QFrame):
         """Expand or collapse the inline log body."""
         self._log_expanded = not self._log_expanded
         self._log_output.setVisible(self._log_expanded)
+
+    def _copy_command(self) -> None:
+        """Copy the command label text to the clipboard with brief feedback."""
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(self._command_label.text())
+        self._copy_btn.setText('\u2713')
+        self._copy_btn.setToolTip('Copied!')
+
+        def _restore() -> None:
+            try:
+                self._copy_btn.setText(COPY_ICON)
+                self._copy_btn.setToolTip('Copy to clipboard')
+            except RuntimeError:
+                pass
+
+        QTimer.singleShot(COPY_FEEDBACK_MS, _restore)
 
     # ------------------------------------------------------------------
     # Public API — populate from action data
@@ -409,9 +453,9 @@ class ActionCard(QFrame):
         cmd_text = _format_command(action)
         if cmd_text:
             self._command_label.setText(cmd_text)
-            self._command_label.show()
+            self._command_row.show()
         else:
-            self._command_label.hide()
+            self._command_row.hide()
 
         # Version — populated later by set_check_result()
 
@@ -467,9 +511,9 @@ class ActionCard(QFrame):
         cmd_text = _format_command(action)
         if cmd_text:
             self._command_label.setText(cmd_text)
-            self._command_label.show()
+            self._command_row.show()
         else:
-            self._command_label.hide()
+            self._command_row.hide()
 
     def initial_status(self) -> str:
         """Return the initial status text set during :meth:`populate`."""
