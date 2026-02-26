@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from typing import Any
 from unittest.mock import MagicMock
 
 from porringer.schema import (
@@ -26,6 +27,7 @@ from synodic_client.application.theme import (
     ACTION_CARD_STATUS_DONE,
     ACTION_CARD_STATUS_FAILED,
     ACTION_CARD_STATUS_NEEDED,
+    ACTION_CARD_STATUS_PENDING,
     ACTION_CARD_STATUS_RUNNING,
     ACTION_CARD_STATUS_SATISFIED,
     ACTION_CARD_STATUS_SKIPPED,
@@ -50,7 +52,7 @@ def _make_action(
     description: str = 'Install requests',
     installer: str = 'pip',
     package: str = 'requests',
-    **overrides: object,
+    **overrides: Any,
 ) -> SetupAction:
     """Create a mock SetupAction with sensible defaults.
 
@@ -80,7 +82,7 @@ def _make_result(
     skipped: bool = False,
     skip_reason: SkipReason | None = None,
     message: str | None = None,
-    **overrides: object,
+    **overrides: Any,
 ) -> SetupActionResult:
     """Create a SetupActionResult.
 
@@ -88,13 +90,13 @@ def _make_result(
     ``available_version``) are forwarded to the constructor.
     """
     return SetupActionResult(
-        action=overrides.get('action') or _make_action(),  # type: ignore[arg-type]
+        action=overrides.get('action') or _make_action(),
         success=success,
         skipped=skipped,
         skip_reason=skip_reason,
         message=message,
-        installed_version=overrides.get('installed_version'),  # type: ignore[arg-type]
-        available_version=overrides.get('available_version'),  # type: ignore[arg-type]
+        installed_version=overrides.get('installed_version'),
+        available_version=overrides.get('available_version'),
     )
 
 
@@ -329,6 +331,71 @@ class TestActionCardCheckResult:
 
 
 # ---------------------------------------------------------------------------
+# ActionCard — dry-run check failure (success=False)
+# ---------------------------------------------------------------------------
+
+
+class TestActionCardCheckFailure:
+    """Tests for set_check_result when the dry-run returns a failure."""
+
+    @staticmethod
+    def test_failed_check_shows_failed_status() -> None:
+        """A check result with success=False shows 'Failed'."""
+        card = ActionCard()
+        card.populate(_make_action(kind=PluginKind.SCM, package='periapsis', installer='git'))
+        result = _make_result(
+            success=False,
+            skipped=False,
+            message="No SCM plugin was found for ecosystem 'git'.",
+        )
+        card.set_check_result(result)
+        assert card.status_text() == 'Failed'
+        assert ACTION_CARD_STATUS_FAILED in card._status_label.styleSheet()
+
+    @staticmethod
+    def test_failed_check_shows_error_tooltip() -> None:
+        """A failed check result surfaces the error message as a tooltip."""
+        card = ActionCard()
+        action = _make_action(kind=PluginKind.SCM, package='repo')
+        action.installer = None  # Simulate an unresolved deferred action
+        card.populate(action)
+        msg = "SCM environment 'None' is not available"
+        result = _make_result(success=False, skipped=False, message=msg)
+        card.set_check_result(result)
+        assert card._status_label.toolTip() == msg
+
+    @staticmethod
+    def test_failed_check_stops_spinner() -> None:
+        """A failed check result stops the inline spinner."""
+        card = ActionCard()
+        card.populate(_make_action())
+        assert card._checking
+        result = _make_result(success=False, skipped=False, message='error')
+        card.set_check_result(result)
+        assert not card._checking
+        assert not card._spinner_timer.isActive()
+
+    @staticmethod
+    def test_failed_check_not_update_available() -> None:
+        """A failed check is not considered 'Update available'."""
+        card = ActionCard()
+        card.populate(_make_action())
+        result = _make_result(success=False, skipped=False, message='backend missing')
+        card.set_check_result(result)
+        assert not card.is_update_available()
+
+    @staticmethod
+    def test_success_true_still_needed() -> None:
+        """A non-skipped, successful result still shows 'Needed'."""
+        card = ActionCard()
+        card.populate(_make_action())
+        result = _make_result(success=True, skipped=False)
+        card.set_check_result(result)
+        assert card.status_text() == 'Needed'
+        assert ACTION_CARD_STATUS_NEEDED in card._status_label.styleSheet()
+
+
+# ---------------------------------------------------------------------------
 # ActionCard — execution (inline log)
 # ---------------------------------------------------------------------------
 
@@ -493,14 +560,15 @@ class TestActionCardList:
             assert not c._is_skeleton
 
     @staticmethod
-    def test_populate_skips_command_actions() -> None:
-        """Populate skips actions with kind=None."""
+    def test_populate_includes_command_actions() -> None:
+        """Populate includes actions with kind=None."""
         card_list = ActionCardList()
         a1 = _make_action(package='pkg1')
         a2 = _make_action(package='pkg2')
         a2.kind = None  # bare command
-        card_list.populate([a1, a2])
-        assert card_list.card_count() == 1
+        actions = [a1, a2]
+        card_list.populate(actions)
+        assert card_list.card_count() == len(actions)
 
     @staticmethod
     def test_get_card_by_stable_key() -> None:
@@ -867,13 +935,44 @@ class TestActionCardListOrdering:
             assert card._package_label.text() == name
 
     @staticmethod
-    def test_bare_commands_excluded() -> None:
-        """Actions with kind=None are excluded from the card list."""
+    def test_bare_commands_included() -> None:
+        """Actions with kind=None are included in the card list."""
         card_list = ActionCardList()
         pkg = _make_action(kind=PluginKind.PACKAGE, package='requests')
         cmd = _make_action(kind=None, package='run-something')
-        card_list.populate([pkg, cmd])
-        assert card_list.card_count() == 1
+        actions = [pkg, cmd]
+        card_list.populate(actions)
+        assert card_list.card_count() == len(actions)
+
+    @staticmethod
+    def test_bare_commands_sort_last() -> None:
+        """Bare-command actions sort after all PluginKind phases."""
+        card_list = ActionCardList()
+        cmd = _make_action(kind=None, package='post-cmd')
+        a_pkg = _make_action(kind=PluginKind.PACKAGE, package='requests')
+        a_scm = _make_action(kind=PluginKind.SCM, package='my-repo')
+        actions = [cmd, a_pkg, a_scm]
+        card_list.populate(actions)
+
+        assert card_list.card_count() == len(actions)
+        # Package(1) → SCM(4) → None(last)
+        card_0 = card_list.card_at(0)
+        card_1 = card_list.card_at(1)
+        card_2 = card_list.card_at(2)
+        assert card_0 is not None
+        assert card_0._package_label.text() == 'requests'
+        assert card_1 is not None
+        assert card_1._package_label.text() == 'my-repo'
+        assert card_2 is not None
+        assert card_2._package_label.text() == 'post-cmd'
+
+    @staticmethod
+    def test_bare_command_shows_pending_status() -> None:
+        """Bare-command card shows 'Pending' status with the pending style."""
+        card = ActionCard()
+        card.populate(_make_action(kind=None, package='echo-hello'))
+        assert card.status_text() == 'Pending'
+        assert ACTION_CARD_STATUS_PENDING in card._status_label.styleSheet()
 
     @staticmethod
     def test_scroll_to_card_bottom_exists() -> None:
