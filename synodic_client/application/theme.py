@@ -107,25 +107,171 @@ LOG_OUTPUT_STYLE = (
 )
 
 # ---------------------------------------------------------------------------
-# Plugin section panel
+# Plugin panel — modernised flat list
 # ---------------------------------------------------------------------------
-PLUGIN_GROUP_HEADER_STYLE = 'QWidget#pluginGroupHeader {  padding: 6px 4px 2px 0px;}'
-"""Style for the collapsible group header in the plugins view."""
 
-PLUGIN_GROUP_TITLE_STYLE = 'font-weight: bold; font-size: 13px;'
-"""Style for the group heading label text."""
-
-PLUGIN_GROUP_SECTION_SPACING = 2
-"""Pixels between plugin sections within a group."""
-
-PLUGIN_SECTION_HEADER_STYLE = (
-    'QWidget#pluginHeader {'
-    '  background: palette(midlight);'
-    '  border: 1px solid palette(mid);'
-    '  border-radius: 3px;'
-    '  padding: 4px 8px;'
+# Kind header — uppercase section divider ("TOOLS", "PACKAGES", …)
+PLUGIN_KIND_HEADER_STYLE = (
+    'QLabel#pluginKindHeader {'
+    '  font-size: 11px;'
+    '  font-weight: bold;'
+    '  color: #808080;'
+    '  text-transform: uppercase;'
+    '  padding: 10px 4px 4px 4px;'
+    '  border-bottom: 1px solid palette(mid);'
     '}'
 )
+"""Uppercase, muted section divider for each plugin-kind group."""
+
+PLUGIN_KIND_HEADER_SPACING = 6
+"""Pixels below a kind header before the first provider row."""
+
+# Provider sub-header — thin row showing the managing plugin
+PLUGIN_PROVIDER_STYLE = 'QFrame#pluginProvider {  background: transparent;  padding: 2px 8px 2px 4px;}'
+"""Subtle sub-header row for the plugin that manages a set of tools."""
+
+PLUGIN_PROVIDER_NAME_STYLE = 'font-size: 12px; font-weight: bold; color: #cccccc;'
+"""Provider name (e.g. "uv", "pip")."""
+
+PLUGIN_PROVIDER_VERSION_STYLE = 'font-size: 11px; color: #808080;'
+"""Provider version text."""
+
+PLUGIN_PROVIDER_STATUS_INSTALLED_STYLE = 'font-size: 10px; color: #89d185;'
+"""Green dot / label for installed providers."""
+
+PLUGIN_PROVIDER_STATUS_MISSING_STYLE = 'font-size: 10px; color: #f48771;'
+"""Red-orange dot / label for missing providers."""
+
+# Compact tool / package row
+PLUGIN_ROW_STYLE = (
+    'QFrame#pluginRow {'
+    '  background: transparent;'
+    '  border-radius: 4px;'
+    '  padding: 3px 8px 3px 20px;'
+    '}'
+    'QFrame#pluginRow:hover {'
+    '  background: #2a2d2e;'
+    '}'
+)
+"""Compact row for an individual tool or package managed by a plugin."""
+
+PLUGIN_ROW_NAME_STYLE = 'font-size: 12px; color: #cccccc;'
+"""Package / tool name in a row."""
+
+PLUGIN_ROW_PROJECT_STYLE = 'font-size: 11px; color: #808080;'
+"""Project directory association in a row."""
+
+PLUGIN_ROW_VERSION_STYLE = 'font-size: 11px; color: grey;'
+"""Version text in a row."""
+
+PLUGIN_ROW_GLOBAL_STYLE = 'font-size: 11px; color: #808080; font-style: italic;'
+"""Muted italic annotation label for non-manifest (global) packages."""
+
+PLUGIN_ROW_HOST_STYLE = 'font-size: 11px; color: #808080;'
+"""Host-tool annotation label (e.g. "→ pdm") for injected packages."""
+
+PLUGIN_ROW_TOGGLE_STYLE = (
+    'QPushButton { padding: 1px 4px; border: 1px solid palette(mid); border-radius: 2px;'
+    '  font-size: 10px; min-width: 36px; max-width: 36px; }'
+    'QPushButton:checked { background: #89d185; color: black; }'
+    'QPushButton:disabled { color: palette(mid); border-color: palette(mid); background: transparent; }'
+    'QPushButton:checked:disabled { background: transparent; color: palette(mid); }'
+)
+"""Small inline auto-update toggle for individual package rows."""
+
+PLUGIN_ROW_UPDATE_STYLE = (
+    'QPushButton { padding: 1px 4px; border: 1px solid palette(mid); border-radius: 2px;'
+    '  font-size: 10px; min-width: 48px; max-width: 60px; }'
+    'QPushButton:disabled { color: palette(mid); border-color: palette(mid); background: transparent; }'
+)
+"""Small inline update button for individual package rows."""
+
+PLUGIN_ROW_REMOVE_STYLE = (
+    'QPushButton { border: none; font-size: 12px; color: #808080;'
+    '  padding: 0px 2px; min-width: 18px; max-width: 18px; }'
+    'QPushButton:hover { color: #f48771; }'
+    'QPushButton:pressed { color: #d4d4d4; }'
+    'QPushButton:disabled { color: palette(mid); }'
+)
+"""Small inline remove (×) button for individual package rows."""
+
+PLUGIN_ROW_ERROR_STYLE = 'font-size: 11px; color: #f48771;'
+"""Transient inline error label shown on a row after a failed action."""
+
+PLUGIN_ROW_SPACING = 1
+"""Pixels between individual tool/package rows."""
+
+# Project child row — indented sub-row for project-scoped package instances
+PROJECT_CHILD_ROW_STYLE = (
+    'QFrame#projectChildRow {'
+    '  background: transparent;'
+    '  border-radius: 4px;'
+    '  padding: 2px 8px 2px 40px;'
+    '}'
+    'QFrame#projectChildRow:hover {'
+    '  background: #252628;'
+    '}'
+)
+"""Indented row showing a project-scoped instance of a package."""
+
+PROJECT_CHILD_NAME_STYLE = 'font-size: 11px; color: #999999;'
+"""Dimmed package name for project child rows."""
+
+PROJECT_CHILD_PROJECT_STYLE = 'font-size: 11px; color: #808080;'
+"""Project label for project child rows."""
+
+PROJECT_CHILD_VERSION_STYLE = 'font-size: 10px; color: #707070;'
+"""Version text for project child rows."""
+
+PROJECT_CHILD_TRANSITIVE_STYLE = 'font-size: 10px; color: #666666; font-style: italic;'
+"""Dimmed italic label for transitive (non-manifest) dependencies."""
+
+PROJECT_CHILD_NAV_STYLE = (
+    'QPushButton { border: none; font-size: 11px; color: #808080;'
+    '  padding: 0px 2px; min-width: 18px; max-width: 18px; }'
+    'QPushButton:hover { color: #3794ff; }'
+    'QPushButton:pressed { color: #d4d4d4; }'
+)
+"""Navigate arrow button that switches to the Projects tab."""
+
+# Search & filter — toolbar search input and plugin filter chips
+SEARCH_INPUT_STYLE = (
+    'QLineEdit {'
+    '  background: #1e1e1e;'
+    '  border: 1px solid palette(mid);'
+    '  border-radius: 3px;'
+    '  color: #cccccc;'
+    '  font-size: 12px;'
+    '  padding: 2px 6px;'
+    '  min-width: 200px;'
+    '  max-width: 300px;'
+    '}'
+    'QLineEdit:focus { border-color: #3794ff; }'
+)
+"""Dark search input for the ToolsView toolbar."""
+
+FILTER_CHIP_STYLE = (
+    'QPushButton {'
+    '  border: 1px solid palette(mid);'
+    '  border-radius: 10px;'
+    '  padding: 1px 8px;'
+    '  font-size: 10px;'
+    '  color: #808080;'
+    '  background: transparent;'
+    '}'
+    'QPushButton:checked {'
+    '  background: #094771;'
+    '  border-color: #3794ff;'
+    '  color: #cccccc;'
+    '}'
+    'QPushButton:hover { color: #cccccc; }'
+)
+"""Toggleable pill chip for plugin filter in the ToolsView toolbar."""
+
+FILTER_CHIP_SPACING = 4
+"""Pixels between filter chips."""
+
+# Retained from previous design — auto-update & per-plugin update buttons
 PLUGIN_TOGGLE_STYLE = (
     'QPushButton { padding: 2px 8px; border: 1px solid palette(mid); border-radius: 3px;'
     '  min-width: 60px; max-width: 60px; }'
@@ -140,8 +286,8 @@ PLUGIN_UPDATE_STYLE = (
     'QPushButton:disabled { color: palette(mid); border-color: palette(mid); background: transparent; }'
 )
 
-PLUGIN_SECTION_SPACING = 4
-"""Pixels between plugin sections in the scroll area."""
+PLUGIN_SECTION_SPACING = 2
+"""Pixels between provider groups in the scroll area."""
 
 # ---------------------------------------------------------------------------
 # Card-based layout

@@ -196,7 +196,7 @@ class TestInstallWorker:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
@@ -224,7 +224,7 @@ class TestInstallWorker:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
@@ -320,16 +320,17 @@ class TestPreviewWorker:
     def test_emits_error_on_download_failure(monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify run_preview raises when download fails."""
         porringer = MagicMock()
-        monkeypatch.setattr(
-            _DOWNLOAD_PATCH,
-            lambda params, progress_callback=None: DownloadResult(
+
+        async def _mock_download(params: Any, progress_callback: Any = None) -> DownloadResult:
+            return DownloadResult(
                 success=False,
                 path=None,
                 verified=False,
                 size=0,
                 message='Network error',
-            ),
-        )
+            )
+
+        monkeypatch.setattr(_DOWNLOAD_PATCH, _mock_download)
 
         with pytest.raises(RuntimeError, match='Network error'):
             asyncio.run(run_preview(porringer, 'https://example.com/bad.json'))
@@ -342,16 +343,16 @@ class TestPreviewWorker:
         dest = tmp_path / 'porringer.json'
         dest.write_text('{}')
 
-        monkeypatch.setattr(
-            _DOWNLOAD_PATCH,
-            lambda params, progress_callback=None: DownloadResult(
+        async def _mock_download(params: Any, progress_callback: Any = None) -> DownloadResult:
+            return DownloadResult(
                 success=True,
                 path=dest,
                 verified=True,
                 size=100,
                 message='OK',
-            ),
-        )
+            )
+
+        monkeypatch.setattr(_DOWNLOAD_PATCH, _mock_download)
 
         expected = SetupResults(actions=[])
         manifest_event = ProgressEvent(kind=ProgressEventKind.MANIFEST_LOADED, manifest=expected)
@@ -424,7 +425,7 @@ class TestPreviewWorkerSignals:
         assert ready_calls[0][0] is preview
         assert len(checked) == 1
         assert checked[0] == (0, result)
-        assert finished is True
+        assert finished
 
     @staticmethod
     def test_emits_finished_for_empty_actions(tmp_path: Path) -> None:
@@ -449,7 +450,7 @@ class TestPreviewWorkerSignals:
             finished = True
 
         asyncio.run(_run())
-        assert finished is True
+        assert finished
 
     @staticmethod
     def test_action_checked_maps_correct_rows(tmp_path: Path) -> None:
@@ -682,7 +683,7 @@ class TestPreviewWorkerUpdateDetection:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
@@ -715,7 +716,7 @@ class TestPreviewWorkerUpdateDetection:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
@@ -765,7 +766,7 @@ class TestPreviewWorkerProjectDirectory:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
@@ -794,7 +795,7 @@ class TestPreviewWorkerProjectDirectory:
 
         captured_params: list[Any] = []
 
-        async def mock_stream(params: Any) -> Any:
+        async def mock_stream(params: Any, **kwargs: Any) -> Any:
             captured_params.append(params)
             yield manifest_event
 
