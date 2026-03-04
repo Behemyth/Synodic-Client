@@ -28,14 +28,13 @@ from PySide6.QtWidgets import (
 )
 
 from synodic_client.application.icon import app_icon
+from synodic_client.application.screen import _format_relative_time
 from synodic_client.application.screen.card import CardFrame
 from synodic_client.application.theme import SETTINGS_WINDOW_MIN_SIZE, UPDATE_STATUS_CHECKING_STYLE
 from synodic_client.logging import log_path
 from synodic_client.resolution import ResolvedConfig, update_user_config
+from synodic_client.schema import GITHUB_REPO_URL
 from synodic_client.startup import is_startup_registered, register_startup, remove_startup
-from synodic_client.updater import (
-    GITHUB_REPO_URL,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +186,11 @@ class SettingsWindow(QMainWindow):
         row.addStretch()
         content.addLayout(row)
 
+        # Last client update timestamp
+        self._last_client_update_label = QLabel('')
+        self._last_client_update_label.setStyleSheet('color: #808080; font-size: 11px;')
+        content.addWidget(self._last_client_update_label)
+
     def _build_startup_section(self) -> CardFrame:
         """Construct the *Startup* settings card."""
         card = CardFrame('Startup')
@@ -233,6 +237,14 @@ class SettingsWindow(QMainWindow):
             self._detect_updates_check.setChecked(config.detect_updates)
             self._auto_apply_check.setChecked(config.auto_apply)
             self._auto_start_check.setChecked(is_startup_registered())
+
+            # Last client update timestamp
+            if config.last_client_update:
+                relative = _format_relative_time(config.last_client_update)
+                self._last_client_update_label.setText(f'Last updated: {relative}')
+                self._last_client_update_label.setToolTip(f'Last updated: {config.last_client_update}')
+            else:
+                self._last_client_update_label.setText('')
 
     def set_update_status(self, text: str, style: str = '') -> None:
         """Set the inline status text next to the *Check for Updates* button.

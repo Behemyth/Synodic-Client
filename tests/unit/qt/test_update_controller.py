@@ -15,7 +15,7 @@ from synodic_client.application.theme import (
 )
 from synodic_client.application.update_controller import UpdateController
 from synodic_client.resolution import ResolvedConfig
-from synodic_client.updater import (
+from synodic_client.schema import (
     DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
     DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES,
     UpdateInfo,
@@ -38,6 +38,8 @@ def _make_config(**overrides: Any) -> ResolvedConfig:
         'prerelease_packages': None,
         'auto_apply': True,
         'auto_start': True,
+        'last_client_update': None,
+        'last_tool_updates': None,
     }
     defaults.update(overrides)
     return ResolvedConfig(**defaults)

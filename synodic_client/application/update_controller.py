@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
@@ -26,8 +27,9 @@ from synodic_client.resolution import (
     ResolvedConfig,
     resolve_config,
     resolve_update_config,
+    update_user_config,
 )
-from synodic_client.updater import UpdateInfo
+from synodic_client.schema import UpdateInfo
 
 if TYPE_CHECKING:
     from synodic_client.application.screen.settings import SettingsWindow
@@ -271,6 +273,9 @@ class UpdateController:
             self._banner.show_error('Download failed. Please try again later.')
             self._settings_window.set_update_status('Download failed', UPDATE_STATUS_ERROR_STYLE)
             return
+
+        # Persist the client update timestamp
+        update_user_config(last_client_update=datetime.now(UTC).isoformat())
 
         if self._auto_apply:
             # Silently apply and restart — no banner, no user interaction

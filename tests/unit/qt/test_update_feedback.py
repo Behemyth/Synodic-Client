@@ -8,7 +8,8 @@ from packaging.version import Version
 from porringer.schema import PluginInfo
 from porringer.schema.plugin import PluginKind
 
-from synodic_client.application.screen.screen import PluginProviderHeader, PluginRow, PluginRowData
+from synodic_client.application.screen.plugin_row import PluginProviderHeader, PluginRow
+from synodic_client.application.screen.schema import PluginRowData
 
 
 def _make_plugin(
@@ -166,9 +167,10 @@ class TestPluginRowUpdates:
 
     @staticmethod
     def test_no_update_button_by_default() -> None:
-        """With has_update=False the row has no update button."""
+        """With has_update=False the update button exists but is hidden."""
         row = PluginRow(PluginRowData(name='pdm', plugin_name='pipx', show_toggle=True))
-        assert row._update_btn is None
+        assert row._update_btn is not None
+        assert row._update_btn.isHidden()
 
     @staticmethod
     def test_update_button_visible_when_has_update() -> None:
@@ -236,11 +238,11 @@ class TestPluginRowUpdates:
 
     @staticmethod
     def test_set_updating_noop_without_button() -> None:
-        """set_updating is a no-op when no update button exists."""
+        """set_updating works even when has_update was False (button is hidden)."""
         row = PluginRow(PluginRowData(name='pdm', plugin_name='pipx', show_toggle=True))
         # Should not raise
         row.set_updating(True)
-        assert row._update_btn is None
+        assert row._update_btn is not None
 
     @staticmethod
     def test_set_checking_shows_spinner() -> None:
