@@ -5,6 +5,7 @@ import logging
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
+    QMainWindow,
     QMenu,
     QSystemTrayIcon,
 )
@@ -130,13 +131,15 @@ class TrayScreen:
         """Show the settings window."""
         self._settings_window.show()
 
-    def _is_user_active(self) -> bool:
-        """Return ``True`` when the user has a visible window.
+    @staticmethod
+    def _is_user_active() -> bool:
+        """Return ``True`` when the user has a visible application window.
 
-        Used by the update controllers to defer automatic updates
-        while the user is actively interacting with the application.
+        Checks all top-level ``QMainWindow`` instances (main window,
+        settings, install previews) so that auto-apply is deferred
+        whenever *any* window is open.
         """
-        return self._window.isVisible() or self._settings_window.isVisible()
+        return any(w.isVisible() for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow))
 
     def _on_settings_changed(self, config: ResolvedConfig) -> None:
         """React to a change made in the settings window."""

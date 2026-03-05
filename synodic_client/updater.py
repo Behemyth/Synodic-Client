@@ -7,6 +7,7 @@ and installation.
 For non-installed (development) environments, updates are not supported.
 """
 
+import contextlib
 import logging
 import sys
 from collections.abc import Callable
@@ -113,6 +114,12 @@ class Updater:
         self._update_info: UpdateInfo | None = None
         self._velopack_manager: Any = None
         self._velopack_not_installed: bool = False
+
+        # Eagerly resolve the Velopack manager so that
+        # _current_version reflects the installed binary version
+        # rather than the (potentially stale) Python package metadata.
+        with contextlib.suppress(Exception):
+            self._get_velopack_manager()
 
         logger.info(
             'Updater created: version=%s, channel=%s, repo=%s',
@@ -406,6 +413,11 @@ def initialize_velopack() -> None:
         return
     _VelopackState.initialized = True
 
+    # During post-update restarts Velopack's App.run() may exit the
+    # current process (to apply the update and relaunch).  Each
+    # short-lived process writes "Initializing Velopack" to the shared
+    # log file before being replaced, so multiple entries followed by a
+    # single "initialized successfully" is expected behaviour.
     logger.info('Initializing Velopack (exe=%s)', sys.executable)
     try:
         app = velopack.App()

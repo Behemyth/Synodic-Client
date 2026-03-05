@@ -38,6 +38,7 @@ def _make_config(**overrides: Any) -> ResolvedConfig:
         'prerelease_packages': None,
         'auto_apply': True,
         'auto_start': True,
+        'debug_logging': False,
         'last_client_update': None,
         'last_tool_updates': None,
     }
@@ -198,6 +199,27 @@ class TestDownloadFinished:
         )
 
     @staticmethod
+    def test_no_auto_apply_shows_restart_button() -> None:
+        """When auto_apply=False, the restart button should be shown in settings."""
+        ctrl, app, client, banner, settings = _make_controller(auto_apply=False)
+        ctrl._on_download_finished(True, '2.0.0')
+
+        settings.show_restart_button.assert_called_once()
+
+    @staticmethod
+    def test_user_active_shows_restart_button() -> None:
+        """When user is active, the restart button should be shown in settings."""
+        ctrl, app, client, banner, settings = _make_controller(
+            auto_apply=True,
+            is_user_active=True,
+        )
+
+        with patch.object(ctrl, '_apply_update'):
+            ctrl._on_download_finished(True, '2.0.0')
+
+        settings.show_restart_button.assert_called_once()
+
+    @staticmethod
     def test_download_failure_shows_error() -> None:
         """A failed download should show an error banner."""
         ctrl, app, client, banner, settings = _make_controller()
@@ -213,22 +235,16 @@ class TestDownloadFinished:
 
 
 class TestUserActiveGating:
-    """Verify that automatic actions are deferred when the user is active."""
+    """Verify that auto-apply is deferred when the user is active.
+
+    Automatic checks always run so the settings window stays current.
+    Only the silent apply-and-restart is gated by ``_is_user_active``.
+    """
 
     @staticmethod
-    def test_auto_check_skipped_when_user_active() -> None:
-        """_on_auto_check should not call _do_check when user is active."""
+    def test_auto_check_always_runs() -> None:
+        """_on_auto_check should call _do_check even when user is active."""
         ctrl, _app, _client, banner, settings = _make_controller(is_user_active=True)
-
-        with patch.object(ctrl, '_do_check') as mock_check:
-            ctrl._on_auto_check()
-
-        mock_check.assert_not_called()
-
-    @staticmethod
-    def test_auto_check_proceeds_when_user_inactive() -> None:
-        """_on_auto_check should call _do_check when user is NOT active."""
-        ctrl, _app, _client, banner, settings = _make_controller(is_user_active=False)
 
         with patch.object(ctrl, '_do_check') as mock_check:
             ctrl._on_auto_check()
@@ -317,6 +333,14 @@ class TestApplyUpdate:
 
         client.apply_update_on_exit.assert_not_called()
         app.quit.assert_not_called()
+
+    @staticmethod
+    def test_restart_requested_signal_triggers_apply() -> None:
+        """The settings restart_requested signal should be connected to _apply_update."""
+        ctrl, app, client, banner, settings = _make_controller()
+
+        # Verify the signal was connected
+        settings.restart_requested.connect.assert_called_once_with(ctrl._apply_update)
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ from synodic_client.application.icon import app_icon
 from synodic_client.application.screen import _format_relative_time
 from synodic_client.application.screen.card import CardFrame
 from synodic_client.application.theme import SETTINGS_WINDOW_MIN_SIZE, UPDATE_STATUS_CHECKING_STYLE
-from synodic_client.logging import log_path
+from synodic_client.logging import log_path, set_debug_level
 from synodic_client.resolution import ResolvedConfig, update_user_config
 from synodic_client.schema import GITHUB_REPO_URL
 from synodic_client.startup import is_startup_registered, register_startup, remove_startup
@@ -54,11 +54,14 @@ class SettingsWindow(QMainWindow):
     check_updates_requested = Signal()
     """Emitted when the user clicks the *Check for Updates* button."""
 
+    restart_requested = Signal()
+    """Emitted when the user clicks the *Restart & Update* button."""
+
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         """[DIAG] Log every show event with a stack trace."""
         geo = self.geometry()
         stack = ''.join(traceback.format_stack(limit=10))
-        logger.warning(
+        logger.debug(
             '[DIAG] SettingsWindow.showEvent: geo=(%d,%d %dx%d) visible=%s\n%s',
             geo.x(),
             geo.y(),
@@ -199,6 +202,12 @@ class SettingsWindow(QMainWindow):
         self._update_status_label = QLabel('')
         self._update_status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         row.addWidget(self._update_status_label)
+
+        self._restart_btn = QPushButton('Restart \u0026 Update')
+        self._restart_btn.clicked.connect(self.restart_requested.emit)
+        self._restart_btn.hide()
+        row.addWidget(self._restart_btn)
+
         row.addStretch()
         content.addLayout(row)
 
@@ -218,6 +227,12 @@ class SettingsWindow(QMainWindow):
     def _build_advanced_section(self) -> CardFrame:
         """Construct the *Advanced* settings card."""
         card = CardFrame('Advanced')
+
+        self._debug_logging_check = QCheckBox('Debug logging')
+        self._debug_logging_check.setToolTip('Write DEBUG-level messages to the log file')
+        self._debug_logging_check.toggled.connect(self._on_debug_logging_changed)
+        card.content_layout.addWidget(self._debug_logging_check)
+
         row = QHBoxLayout()
         open_log_btn = QPushButton('Open Log\u2026')
         open_log_btn.clicked.connect(self._open_log)
@@ -254,6 +269,9 @@ class SettingsWindow(QMainWindow):
             self._auto_apply_check.setChecked(config.auto_apply)
             self._auto_start_check.setChecked(is_startup_registered())
 
+            # Debug logging
+            self._debug_logging_check.setChecked(config.debug_logging)
+
             # Last client update timestamp
             if config.last_client_update:
                 relative = _format_relative_time(config.last_client_update)
@@ -275,12 +293,17 @@ class SettingsWindow(QMainWindow):
     def set_checking(self) -> None:
         """Enter the *checking* state — disable button and show status."""
         self._check_updates_btn.setEnabled(False)
+        self._restart_btn.hide()
         self._update_status_label.setText('Checking\u2026')
         self._update_status_label.setStyleSheet(UPDATE_STATUS_CHECKING_STYLE)
 
     def reset_check_updates_button(self) -> None:
         """Re-enable the *Check for Updates* button after a check completes."""
         self._check_updates_btn.setEnabled(True)
+
+    def show_restart_button(self) -> None:
+        """Show the *Restart & Update* button."""
+        self._restart_btn.show()
 
     def show(self) -> None:
         """Sync controls from config, then show the window."""
@@ -313,6 +336,7 @@ class SettingsWindow(QMainWindow):
             self._detect_updates_check,
             self._auto_apply_check,
             self._auto_start_check,
+            self._debug_logging_check,
             self._check_updates_btn,
         )
         for w in widgets:
@@ -361,6 +385,10 @@ class SettingsWindow(QMainWindow):
         else:
             remove_startup()
         self.settings_changed.emit(self._config)
+
+    def _on_debug_logging_changed(self, checked: bool) -> None:
+        set_debug_level(enabled=checked)
+        self._persist(debug_logging=checked)
 
     @staticmethod
     def _open_log() -> None:
