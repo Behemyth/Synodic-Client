@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -53,6 +54,9 @@ class UpdateController:
         The ``SettingsWindow`` (receives status text + colour).
     config:
         Optional pre-resolved configuration.  ``None`` resolves from disk.
+    is_user_active:
+        Predicate returning ``True`` when the user has a visible window.
+        Automatic checks and auto-apply are deferred while active.
     """
 
     def __init__(
@@ -60,6 +64,7 @@ class UpdateController:
         app: QApplication,
         client: Client,
         banner: UpdateBanner,
+        *,
         settings_window: SettingsWindow,
         config: ResolvedConfig | None = None,
     ) -> None:
@@ -77,6 +82,7 @@ class UpdateController:
         self._banner = banner
         self._settings_window = settings_window
         self._config = config
+        self._is_user_active: Callable[[], bool] = lambda: False
         self._update_task: asyncio.Task[None] | None = None
 
         # Derive auto-apply preference from config
@@ -94,6 +100,14 @@ class UpdateController:
         # Wire settings check-updates button
         self._settings_window.check_updates_requested.connect(self._on_manual_check)
 
+    def set_user_active_predicate(self, predicate: Callable[[], bool]) -> None:
+        """Set the predicate used to defer automatic checks when the user is active.
+
+        Args:
+            predicate: Returns ``True`` when the user has a visible window.
+        """
+        self._is_user_active = predicate
+
     # ------------------------------------------------------------------
     # Config helpers
     # ------------------------------------------------------------------
@@ -103,6 +117,14 @@ class UpdateController:
         if self._config is not None:
             return self._config
         return resolve_config()
+
+    def _can_auto_apply(self) -> bool:
+        """Return whether a downloaded update should be applied automatically.
+
+        Auto-apply is suppressed when the user has a visible window so
+        the application is never force-restarted during active use.
+        """
+        return self._auto_apply and not self._is_user_active()
 
     # ------------------------------------------------------------------
     # Timer management
@@ -176,7 +198,14 @@ class UpdateController:
         self._do_check(silent=False)
 
     def _on_auto_check(self) -> None:
-        """Handle automatic (periodic) check — silent."""
+        """Handle automatic (periodic) check — silent.
+
+        Skipped when the user has a visible window to avoid disruptive
+        downloads and auto-apply restarts.  The next timer tick retries.
+        """
+        if self._is_user_active():
+            logger.debug('Automatic update check deferred — user is active')
+            return
         self._do_check(silent=True)
 
     def _do_check(self, *, silent: bool) -> None:
@@ -193,9 +222,11 @@ class UpdateController:
 
     async def _async_check(self, *, silent: bool) -> None:
         """Run the update check coroutine and route results."""
+        logger.info('[DIAG] Self-update check starting (silent=%s)', silent)
         try:
             result = await check_for_update(self._client)
             self._on_check_finished(result, silent=silent)
+            logger.info('[DIAG] Self-update check completed (silent=%s)', silent)
         except Exception as exc:
             logger.exception('Update check failed')
             self._on_check_error(str(exc), silent=silent)
@@ -277,7 +308,7 @@ class UpdateController:
         # Persist the client update timestamp
         update_user_config(last_client_update=datetime.now(UTC).isoformat())
 
-        if self._auto_apply:
+        if self._can_auto_apply():
             # Silently apply and restart — no banner, no user interaction
             logger.info('Auto-applying update v%s', version)
             self._settings_window.set_update_status(
@@ -287,7 +318,7 @@ class UpdateController:
             self._apply_update(silent=True)
             return
 
-        # Manual mode — show ready banner and let user choose when to restart
+        # Manual mode (or user is active) — show ready banner and let user choose when to restart
         self._banner.show_ready(version)
         self._settings_window.set_update_status(
             f'v{version} ready',
