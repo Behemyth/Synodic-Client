@@ -142,6 +142,16 @@ PLUGIN_PROVIDER_STATUS_INSTALLED_STYLE = 'font-size: 10px; color: #89d185;'
 PLUGIN_PROVIDER_STATUS_MISSING_STYLE = 'font-size: 10px; color: #f48771;'
 """Red-orange dot / label for missing providers."""
 
+PLUGIN_PROVIDER_RUNTIME_TAG_STYLE = (
+    'QLabel { font-size: 10px; color: #7fb3e0; background: #1e3a5f;  border-radius: 8px; padding: 1px 6px; }'
+)
+"""Pill-shaped runtime tag for per-runtime provider headers."""
+
+PLUGIN_PROVIDER_RUNTIME_TAG_DEFAULT_STYLE = (
+    'QLabel { font-size: 10px; color: #89d185; background: #1e3a2f;  border-radius: 8px; padding: 1px 6px; }'
+)
+"""Pill-shaped runtime tag highlighted for the default runtime."""
+
 # Compact tool / package row
 PLUGIN_ROW_STYLE = (
     'QFrame#pluginRow {'
@@ -309,6 +319,22 @@ FILTER_CHIP_STYLE = (
 
 FILTER_CHIP_SPACING = 4
 """Pixels between filter chips."""
+
+FILTER_PANEL_ANIMATION_MS = 200
+"""Duration of the filter panel slide-in / slide-out animation (ms)."""
+
+FILTER_TOGGLE_STYLE = (
+    'QPushButton { border: none; font-size: 16px; padding: 2px 6px; }'
+    'QPushButton:hover { background: palette(midlight); border-radius: 3px; }'
+)
+"""Default style for the filter toggle button in the ToolsView toolbar."""
+
+FILTER_TOGGLE_ACTIVE_STYLE = (
+    'QPushButton { border: none; font-size: 16px; padding: 2px 6px;'
+    '  border-bottom: 2px solid #3794ff; }'
+    'QPushButton:hover { background: palette(midlight); border-radius: 3px; }'
+)
+"""Filter toggle button style when an active filter is in effect."""
 
 # Retained from previous design — auto-update & per-plugin update buttons
 PLUGIN_TOGGLE_STYLE = (

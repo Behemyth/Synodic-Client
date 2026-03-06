@@ -23,6 +23,7 @@ from porringer.schema import (
     SubActionProgress,
     SyncStrategy,
 )
+from porringer.schema.plugin import RuntimePackageResult
 
 from synodic_client.application.screen.action_card import action_key
 from synodic_client.application.uri import normalize_manifest_key
@@ -139,6 +140,9 @@ class PluginRowData:
     host_tool: str = ''
     """Host-tool name for injected packages."""
 
+    runtime_tag: str = ''
+    """Runtime tag for per-runtime packages (e.g. ``\"3.12\"``)."""
+
     project_paths: list[str] = field(default_factory=list)
     """Filesystem paths for project-scoped packages."""
 
@@ -150,7 +154,7 @@ class PluginRowData:
 
 
 @dataclass(slots=True)
-class _RefreshData:
+class RefreshData:
     """Internal data bundle returned by ``ToolsView._gather_refresh_data``."""
 
     plugins: list[PluginInfo]
@@ -161,6 +165,12 @@ class _RefreshData:
 
     manifest_packages: dict[str, set[str]]
     """Mapping of plugin name → manifest-referenced package names."""
+
+    runtime_packages: dict[str, list[RuntimePackageResult]] = field(default_factory=dict)
+    """Mapping of plugin name → per-runtime package results (RuntimeConsumer plugins only)."""
+
+    default_runtime_executable: Path | None = None
+    """Executable path of the resolved default runtime, if any."""
 
 
 # ---------------------------------------------------------------------------
