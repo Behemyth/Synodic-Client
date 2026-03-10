@@ -31,6 +31,7 @@ from synodic_client.resolution import (
     resolve_config,
     resolve_update_config,
 )
+from synodic_client.subprocess_patch import apply as _apply_subprocess_patch
 from synodic_client.updater import initialize_velopack
 
 
@@ -70,6 +71,23 @@ def _process_uri(uri: str, handler: Callable[[str], None]) -> None:
         manifests = parsed_data.get('manifest')
         if isinstance(manifests, list) and manifests:
             handler(manifests[0])
+
+
+def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
+    """Cancel every pending asyncio task on *loop*.
+
+    Called synchronously from the ``aboutToQuit`` handler.  Each task
+    receives a cancellation request; when the event loop processes its
+    remaining iterations the ``CancelledError`` propagates and the
+    tasks finish cleanly.
+    """
+    _logger = logging.getLogger(__name__)
+    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+    if not pending:
+        return
+    _logger.info('Cancelling %d pending async task(s)', len(pending))
+    for task in pending:
+        task.cancel()
 
 
 def _install_exception_hook(logger: logging.Logger) -> None:
@@ -163,6 +181,7 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     """
     # Activate dev-mode namespacing before anything reads config paths.
     set_dev_mode(dev_mode)
+    _apply_subprocess_patch()
 
     # Configure logging before Velopack so install/uninstall hooks and
     # first-run diagnostics are captured in the log file.
@@ -220,6 +239,18 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
 
     if uri:
         _process_uri(uri, _handle_install_uri)
+
+    # --- Graceful shutdown ---
+    # aboutToQuit fires synchronously when app.quit() is called but
+    # before the event loop stops, giving us a window to cancel
+    # in-flight async tasks and stop timers.
+
+    def _on_about_to_quit() -> None:
+        logger.info('Application shutting down — cancelling async tasks')
+        _tray.shutdown()
+        _cancel_all_tasks(loop)
+
+    app.aboutToQuit.connect(_on_about_to_quit)
 
     # qasync integrates the asyncio event loop with Qt's event loop,
     # enabling async/await usage in the GUI layer without dedicated threads.
