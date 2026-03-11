@@ -48,6 +48,27 @@ class ModelSpy:
 # ---------------------------------------------------------------------------
 
 
+class ModelSpy:
+    """Records signal emissions from an :class:`UpdateModel`."""
+
+    def __init__(self, model: UpdateModel) -> None:
+        """Connect to *model* signals and record emissions."""
+        self.status: list[tuple[str, str]] = []
+        self.check_button_enabled: list[bool] = []
+        self.restart_visible: list[bool] = []
+        self.last_checked: list[str] = []
+
+        model.status_text_changed.connect(lambda t, s: self.status.append((t, s)))
+        model.check_button_enabled_changed.connect(self.check_button_enabled.append)
+        model.restart_visible_changed.connect(self.restart_visible.append)
+        model.last_checked_changed.connect(self.last_checked.append)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
 def _make_config(**overrides: Any) -> ResolvedConfig:
     """Create a ``ResolvedConfig`` with sensible defaults and optional overrides."""
     defaults: dict[str, Any] = {
