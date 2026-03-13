@@ -2,7 +2,9 @@
 
 import asyncio
 import ctypes
+import importlib.metadata
 import logging
+import os
 import signal
 import sys
 import traceback
@@ -16,6 +18,7 @@ from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from synodic_client.application.config_store import ConfigStore
+from synodic_client.application.debug import DebugHandler, DebugServices
 from synodic_client.application.icon import app_icon
 from synodic_client.application.init import run_startup_preamble
 from synodic_client.application.instance import SingleInstance
@@ -25,7 +28,7 @@ from synodic_client.application.screen.tray import TrayScreen
 from synodic_client.application.uri import parse_uri
 from synodic_client.client import Client
 from synodic_client.config import set_dev_mode
-from synodic_client.logging import configure_logging, set_debug_level
+from synodic_client.logging import configure_logging, log_path, set_debug_level
 from synodic_client.protocol import extract_uri_from_args
 from synodic_client.resolution import (
     ResolvedConfig,
@@ -60,6 +63,19 @@ def _init_services(logger: logging.Logger) -> tuple[Client, API, ResolvedConfig]
         update_config.repo_url,
         len(cached_dirs),
     )
+    logger.debug(
+        'Resolved config: update_source=%s update_channel=%s auto_update=%dm tool_update=%dm '
+        'auto_apply=%s auto_start=%s debug_logging=%s prerelease_packages=%s plugin_auto_update=%s',
+        config.update_source,
+        config.update_channel,
+        config.auto_update_interval_minutes,
+        config.tool_update_interval_minutes,
+        config.auto_apply,
+        config.auto_start,
+        config.debug_logging,
+        config.prerelease_packages,
+        config.plugin_auto_update,
+    )
 
     return client, porringer, config
 
@@ -74,21 +90,40 @@ def _process_uri(uri: str, handler: Callable[[str], None]) -> None:
             handler(manifests[0])
 
 
-def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
-    """Cancel every pending asyncio task on *loop*.
+_SHUTDOWN_TIMEOUT: float = 3.0
 
-    Called synchronously from the ``aboutToQuit`` handler.  Each task
-    receives a cancellation request; when the event loop processes its
-    remaining iterations the ``CancelledError`` propagates and the
-    tasks finish cleanly.
+
+async def _async_shutdown(
+    loop: asyncio.AbstractEventLoop,
+    *,
+    timeout: float = _SHUTDOWN_TIMEOUT,
+) -> None:
+    """Cancel remaining async tasks and wait for cleanup to finish.
+
+    Runs after the Qt event loop exits.  Tasks blocked in
+    ``run_in_executor`` threads (network / subprocess I/O) cannot be
+    interrupted, so if any are still alive after *timeout* seconds
+    the process is force-exited via ``os._exit(0)`` to avoid blocking
+    on non-daemon thread joins during interpreter shutdown.
     """
     _logger = logging.getLogger(__name__)
-    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+    current = asyncio.current_task()
+    pending = [t for t in asyncio.all_tasks(loop) if t is not current and not t.done()]
     if not pending:
         return
+
     _logger.info('Cancelling %d pending async task(s)', len(pending))
     for task in pending:
         task.cancel()
+
+    _, still_pending = await asyncio.wait(pending, timeout=timeout)
+    if still_pending:
+        _logger.warning(
+            '%d task(s) did not finish within %.1fs — forcing exit',
+            len(still_pending),
+            timeout,
+        )
+        os._exit(0)
 
 
 def _install_exception_hook(logger: logging.Logger) -> None:
@@ -115,7 +150,7 @@ class _TopLevelShowFilter(QObject):
 
     _diag_logger = logging.getLogger('synodic_client.diag.window')
 
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if (
             event.type() in {QEvent.Type.Show, QEvent.Type.WindowActivate}
             and isinstance(obj, QWidget)
@@ -152,9 +187,12 @@ def _init_app() -> QApplication:
     app.setWindowIcon(app_icon())
     app.setAttribute(Qt.ApplicationAttribute.AA_CompressHighFrequencyEvents)
 
-    # [DIAG] Install a global event filter to log every top-level window show.
-    diag_filter = _TopLevelShowFilter(app)  # parented to app, prevented from GC
-    app.installEventFilter(diag_filter)
+    # Install the diagnostic event filter only when debug-level logging is
+    # active — it calls traceback.format_stack() on every top-level Show
+    # event, which is measurable overhead in normal operation.
+    if logging.getLogger('synodic_client').isEnabledFor(logging.DEBUG):
+        diag_filter = _TopLevelShowFilter(app)  # parented to app, prevented from GC
+        app.installEventFilter(diag_filter)
 
     # Allow Ctrl+C in the terminal to terminate the application.
     # Qt's event loop blocks Python's default SIGINT handling, so we
@@ -166,6 +204,40 @@ def _init_app() -> QApplication:
     _signal_timer.timeout.connect(lambda: None)
 
     return app
+
+
+def _configure_startup(
+    logger: logging.Logger,
+    *,
+    uri: str | None,
+    dev_mode: bool,
+    debug: bool,
+) -> None:
+    """Run the early startup sequence: Velopack, logging banner, URI log."""
+    logger.info('Log file: %s', log_path())
+    logger.info(
+        'Environment: Python %s | PySide6 %s | porringer %s | platform=%s | frozen=%s',
+        sys.version.split()[0],
+        importlib.metadata.version('PySide6'),
+        importlib.metadata.version('porringer'),
+        sys.platform,
+        getattr(sys, 'frozen', False),
+    )
+
+    _install_exception_hook(logger)
+
+    if not dev_mode:
+        # All three functions are idempotent — safe to call even when
+        # bootstrap.py has already executed them before heavy imports.
+        initialize_velopack()
+        run_startup_preamble(sys.executable)
+
+    if uri:
+        logger.info('Received URI: %s', uri)
+
+    if not debug and logging.getLogger('synodic_client').level > logging.DEBUG:
+        # Will be re-evaluated after config is loaded; this is just the banner.
+        pass
 
 
 def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool = False) -> None:
@@ -188,16 +260,8 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     # first-run diagnostics are captured in the log file.
     configure_logging(debug=debug)
     logger = logging.getLogger('synodic_client')
-    _install_exception_hook(logger)
 
-    if not dev_mode:
-        # All three functions are idempotent — safe to call even when
-        # bootstrap.py has already executed them before heavy imports.
-        initialize_velopack()
-        run_startup_preamble(sys.executable)
-
-    if uri:
-        logger.info('Received URI: %s', uri)
+    _configure_startup(logger, uri=uri, dev_mode=dev_mode, debug=debug)
 
     client, porringer, config = _init_services(logger)
 
@@ -237,20 +301,35 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
         window.activateWindow()
         window.start()
 
+    _debug_handler = DebugHandler(
+        DebugServices(
+            client=client,
+            porringer=porringer,
+            coordinator=_screen.window.coordinator,
+            config_store=_store,
+            update_controller=_tray.update_controller,
+            update_model=_tray.update_model,
+            tool_orchestrator=_tray.tool_orchestrator,
+            main_window=_screen.window,
+            settings_window=_tray.settings_window,
+        )
+    )
+    instance.set_debug_handler(_debug_handler.handle)
+
     instance.uri_received.connect(lambda received_uri: _process_uri(received_uri, _handle_install_uri))
 
     if uri:
         _process_uri(uri, _handle_install_uri)
 
     # --- Graceful shutdown ---
-    # aboutToQuit fires synchronously when app.quit() is called but
-    # before the event loop stops, giving us a window to cancel
-    # in-flight async tasks and stop timers.
+    # aboutToQuit fires while the Qt event loop is still running —
+    # stop timers and issue task cancellations here.  The actual await
+    # of those cancellations runs after run_forever() returns (see
+    # _async_shutdown below).
 
     def _on_about_to_quit() -> None:
-        logger.info('Application shutting down — cancelling async tasks')
+        logger.info('Application shutting down')
         _tray.shutdown()
-        _cancel_all_tasks(loop)
 
     app.aboutToQuit.connect(_on_about_to_quit)
 
@@ -258,6 +337,15 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     # enabling async/await usage in the GUI layer without dedicated threads.
     with loop:
         loop.run_forever()
+        # The Qt event loop has exited.  Give cancelled tasks a window
+        # to handle CancelledError, run finally blocks, and release
+        # resources.  If any tasks are stuck in executor threads,
+        # _async_shutdown force-exits after the timeout.
+        try:
+            loop.run_until_complete(_async_shutdown(loop))
+        except Exception:
+            logger.exception('Async shutdown failed — forcing exit')
+            os._exit(0)
 
 
 if __name__ == '__main__':

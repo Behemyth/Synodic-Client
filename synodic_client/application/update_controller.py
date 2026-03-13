@@ -15,9 +15,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -119,6 +119,12 @@ class UpdateController:
             self._update_task.cancel()
             self._update_task = None
         logger.info('UpdateController shut down')
+
+    def _set_task(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Cancel any in-flight task and start *coro* as the active task."""
+        if self._update_task is not None and not self._update_task.done():
+            self._update_task.cancel()
+        self._update_task = asyncio.create_task(coro)
 
     # ------------------------------------------------------------------
     # Config helpers
@@ -284,7 +290,7 @@ class UpdateController:
             self._model.set_restart_visible(False)
             self._model.set_status('Checking\u2026', UPDATE_STATUS_CHECKING_STYLE)
 
-        self._update_task = asyncio.create_task(self._async_check(silent=silent))
+        self._set_task(self._async_check(silent=silent))
 
     async def _async_check(self, *, silent: bool) -> None:
         """Run the update check coroutine and route results."""
@@ -336,7 +342,7 @@ class UpdateController:
 
         # New update available — download it
         self._model.set_status(f'v{version} available', UPDATE_STATUS_AVAILABLE_STYLE)
-        self._model.begin_download(version)
+        self._model.set_downloading(version)
         self._start_download(version, silent=silent)
 
     def _on_check_error(self, error: str, *, silent: bool = False) -> None:
@@ -350,7 +356,7 @@ class UpdateController:
 
     def _start_download(self, version: str, *, silent: bool = False) -> None:
         """Start downloading the update in the background."""
-        self._update_task = asyncio.create_task(self._async_download(version, silent=silent))
+        self._set_task(self._async_download(version, silent=silent))
 
     async def _async_download(self, version: str, *, silent: bool = False) -> None:
         """Run the download coroutine and route results."""
@@ -382,10 +388,7 @@ class UpdateController:
                 logger.warning('Download failed for %s (silent)', version)
             return
 
-        # Persist the client-update timestamp (actual update downloaded)
-        ts = datetime.now(UTC).isoformat()
-        self._store.update(last_client_update=ts)
-        self._model.set_last_checked(ts)
+        self._persist_check_timestamp()
 
         self._pending_version = version
 

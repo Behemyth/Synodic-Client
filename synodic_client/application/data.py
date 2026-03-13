@@ -64,6 +64,11 @@ class DataCoordinator:
         """Shortcut to the current ``DiscoveredPlugins`` instance."""
         return self._snapshot.discovered
 
+    @property
+    def is_stale(self) -> bool:
+        """Whether the cached data needs refreshing."""
+        return self._stale
+
     def invalidate(self) -> None:
         """Mark the cached data as stale.
 
@@ -173,9 +178,21 @@ class DataCoordinator:
             if isinstance(env, PluginManager) and env.is_available():
                 managers[env.tool_name()] = env
 
+        # Step 5: collect protocol capabilities for each plugin
+        capabilities: dict[str, frozenset] = {
+            plugin.name: frozenset(discovered.capabilities(plugin.name)) for plugin in plugins
+        }
+
         # Derive the un-validated directory list for callers that only
         # need path + name (e.g. _gather_packages).
         directories = [r.directory for r in validated]
+
+        logger.info(
+            'Discovery complete: %d plugin(s), %d directory(ies), %d plugin manager(s)',
+            len(plugins),
+            len(directories),
+            len(managers),
+        )
 
         return Snapshot(
             plugins=plugins,
@@ -183,4 +200,5 @@ class DataCoordinator:
             validated_directories=validated,
             discovered=discovered,
             plugin_managers=managers,
+            plugin_capabilities=capabilities,
         )

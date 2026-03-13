@@ -11,16 +11,16 @@ from porringer.backend.builder import Builder
 from porringer.core.plugin_schema.plugin_manager import PluginManager
 from porringer.core.plugin_schema.project_environment import ProjectEnvironment
 from porringer.schema import (
+    ActionCompletedEvent,
     ManifestDirectory,
+    ManifestParsedEvent,
     PluginInfo,
-    ProgressEventKind,
     SetupAction,
     SetupParameters,
     SkipReason,
     SyncStrategy,
 )
 from porringer.schema.plugin import PluginKind, RuntimePackageResult
-from porringer.utility.exception import PluginError
 from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
@@ -477,6 +477,11 @@ class ToolsView(QWidget):
             provider = PluginProviderHeader(
                 plugin,
                 auto_val is not False,
+                capabilities=(
+                    self._coordinator.snapshot.plugin_capabilities.get(plugin.name, frozenset())
+                    if self._coordinator is not None
+                    else frozenset()
+                ),
                 show_controls=True,
                 has_updates=bool(rt_updates),
                 parent=self._container,
@@ -531,10 +536,16 @@ class ToolsView(QWidget):
         """
         auto_val = auto_update_map.get(plugin.name, True)
         plugin_updates = self._get_plugin_updates(plugin.name)
+        caps = (
+            self._coordinator.snapshot.plugin_capabilities.get(plugin.name, frozenset())
+            if self._coordinator is not None
+            else frozenset()
+        )
 
         provider = PluginProviderHeader(
             plugin,
             auto_val is not False,
+            capabilities=caps,
             show_controls=True,
             has_updates=bool(plugin_updates),
             parent=self._container,
@@ -946,8 +957,6 @@ class ToolsView(QWidget):
                 plugin_name,
                 plugins=discovered,
             )
-        except PluginError:
-            return None
         except Exception:
             logger.debug(
                 'Per-runtime probe failed for %s',
@@ -1066,7 +1075,7 @@ class ToolsView(QWidget):
                     project_directory=path,
                 )
                 async for event in self._porringer.sync.execute_stream(params):
-                    if event.kind == ProgressEventKind.MANIFEST_PARSED and event.manifest:
+                    if isinstance(event, ManifestParsedEvent):
                         actions.extend(event.manifest.actions)
                         break
         except Exception:
@@ -1244,11 +1253,7 @@ class ToolsView(QWidget):
                 project_directory=path,
             )
             async for event in self._porringer.sync.execute_stream(params):
-                if (
-                    event.kind == ProgressEventKind.ACTION_COMPLETED
-                    and event.result is not None
-                    and event.result.skip_reason == SkipReason.UPDATE_AVAILABLE
-                ):
+                if isinstance(event, ActionCompletedEvent) and event.result.skip_reason == SkipReason.UPDATE_AVAILABLE:
                     action = event.result.action
                     if action.installer and action.package:
                         pkg_name = str(action.package.name)
@@ -1435,7 +1440,7 @@ class MainWindow(QMainWindow):
         # Update banner â€” always available, starts hidden.
         self._update_banner = UpdateBanner(self)
 
-    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+    def showEvent(self, event: QShowEvent) -> None:
         """[DIAG] Log every show event with a stack trace."""
         geo = self.geometry()
         stack = ''.join(traceback.format_stack(limit=10))

@@ -17,8 +17,6 @@ _MAX_BYTES = 1_048_576  # 1 MB
 _BACKUP_COUNT = 3
 _FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 
-_debug_active: bool = False
-
 
 def log_path() -> Path:
     """Return the path to the application log file.
@@ -103,8 +101,6 @@ def set_debug_level(*, enabled: bool) -> None:
     Args:
         enabled: ``True`` for DEBUG, ``False`` for INFO.
     """
-    global _debug_active  # noqa: PLW0603
-    _debug_active = enabled
     level = logging.DEBUG if enabled else logging.INFO
 
     app_logger = logging.getLogger('synodic_client')
@@ -112,3 +108,8 @@ def set_debug_level(*, enabled: bool) -> None:
     for h in app_logger.handlers:
         if isinstance(h, EagerRotatingFileHandler):
             h.setLevel(level)
+
+    # Also toggle porringer logger so resolution-level diagnostics
+    # (is_package_installed, _apply_strategy) appear in --debug output.
+    porringer_logger = logging.getLogger('porringer')
+    porringer_logger.setLevel(level)
