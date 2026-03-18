@@ -174,6 +174,29 @@ class TestToolCli:
             assert result.exit_code == 0
 
     @staticmethod
+    def test_tool_update_json_with_versions() -> None:
+        """Tool update --json serialises sets, tuples, and version_map."""
+        update_result = UpdateResult(
+            plugin='pip',
+            packages_updated=['requests'],
+            updated_packages={'requests'},
+            version_map={'requests': ('2.31.0', '2.32.0')},
+        )
+        with (
+            patch('synodic_client.cli.context.get_services', return_value=(None, MagicMock(), None)),
+            patch(
+                'synodic_client.operations.tool.update_tool',
+                new_callable=AsyncMock,
+                return_value=update_result,
+            ),
+        ):
+            result = runner.invoke(app, ['tool', 'update', 'pip', '--json'])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data['updated_packages'] == ['requests']
+            assert data['version_map'] == {'requests': ['2.31.0', '2.32.0']}
+
+    @staticmethod
     def test_tool_remove_json() -> None:
         """Tool remove --json returns valid JSON with success."""
         with (
@@ -386,3 +409,87 @@ class TestDebugCli:
         assert result.exit_code == 1
         data = json.loads(result.output)
         assert '--live' in data['error']
+
+
+# ---------------------------------------------------------------------------
+# Install subcommand
+# ---------------------------------------------------------------------------
+
+
+class TestInstallCli:
+    """Tests for synodic-c install sub-command."""
+
+    @staticmethod
+    def test_install_success(tmp_path) -> None:
+        """Install runs execute_install and prints summary."""
+        manifest = tmp_path / 'porringer.json'
+        manifest.write_text('{"version":"1","packages":{},"tools":{}}', encoding='utf-8')
+
+        api = MagicMock()
+
+        async def _empty_stream(*_a, **_kw):
+            return
+            yield  # async generator
+
+        with (
+            patch('synodic_client.cli.context.get_services', return_value=(None, api, None)),
+            patch(
+                'synodic_client.operations.install.resolve_manifest_path',
+                new_callable=AsyncMock,
+                return_value=(manifest, None),
+            ),
+            patch('synodic_client.operations.install.execute_install', return_value=_empty_stream()),
+            patch('synodic_client.operations.install.execute_post_sync', return_value=_empty_stream()),
+        ):
+            result = runner.invoke(app, ['install', str(manifest)])
+            assert result.exit_code == 0
+
+    @staticmethod
+    def test_install_missing_manifest() -> None:
+        """Install with missing manifest exits with code 1."""
+        with (
+            patch('synodic_client.cli.context.get_services', return_value=(None, MagicMock(), None)),
+            patch(
+                'synodic_client.operations.install.resolve_manifest_path',
+                new_callable=AsyncMock,
+                side_effect=FileNotFoundError('Manifest not found'),
+            ),
+        ):
+            result = runner.invoke(app, ['install', '/nonexistent/porringer.json'])
+            assert result.exit_code == 1
+            assert 'not found' in result.output.lower()
+
+    @staticmethod
+    def test_install_json_output(tmp_path) -> None:
+        """Install --json returns valid JSON."""
+        manifest = tmp_path / 'porringer.json'
+        manifest.write_text('{"version":"1","packages":{},"tools":{}}', encoding='utf-8')
+
+        api = MagicMock()
+
+        async def _empty_stream(*_a, **_kw):
+            return
+            yield
+
+        with (
+            patch('synodic_client.cli.context.get_services', return_value=(None, api, None)),
+            patch(
+                'synodic_client.operations.install.resolve_manifest_path',
+                new_callable=AsyncMock,
+                return_value=(manifest, None),
+            ),
+            patch('synodic_client.operations.install.execute_install', return_value=_empty_stream()),
+            patch('synodic_client.operations.install.execute_post_sync', return_value=_empty_stream()),
+        ):
+            result = runner.invoke(app, ['install', str(manifest), '--json'])
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert 'summary' in data
+
+    @staticmethod
+    def test_install_bad_strategy() -> None:
+        """Invalid --strategy exits with code 1."""
+        with patch('synodic_client.cli.context.get_services', return_value=(None, MagicMock(), None)):
+            result = runner.invoke(app, ['install', '/tmp/m.json', '--strategy', 'BOGUS'])
+            assert result.exit_code == 1
+            assert 'Unknown strategy' in result.output
