@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from porringer.core.schema import PackageRef
 from porringer.schema import (
     ActionCompletedEvent,
+    ActionStartedEvent,
+    SetupActionResult,
     SetupParameters,
     SkipReason,
     SyncStrategy,
@@ -46,10 +49,10 @@ def parse_plugin_key(name: str) -> tuple[str, str | None]:
     return name, None
 
 
-def _capture_versions(result: UpdateResult, pkg_name: str, action_result: object) -> None:
+def _capture_versions(result: UpdateResult, pkg_name: str, action_result: SetupActionResult) -> None:
     """Store before/after version info from *action_result* into *result*."""
-    old_ver = getattr(action_result, 'installed_version', '') or ''
-    new_ver = getattr(action_result, 'available_version', '') or ''
+    old_ver = action_result.installed_version or ''
+    new_ver = action_result.available_version or ''
     if pkg_name and (old_ver or new_ver):
         result.version_map[pkg_name] = (old_ver, new_ver)
 
@@ -150,7 +153,10 @@ async def update_tool(
     package_name: str | None = None,
     *,
     runtime_tag: str | None = None,
+    include_packages: set[str] | None = None,
     discovered: DiscoveredPlugins | None = None,
+    on_package_starting: Callable[[str], None] | None = None,
+    on_package_completed: Callable[[str, bool, bool], None] | None = None,
 ) -> UpdateResult:
     """Upgrade a single plugin or a specific package within it.
 
@@ -163,7 +169,13 @@ async def update_tool(
         plugin_name: The installer plugin name.
         package_name: Optional specific package to upgrade.
         runtime_tag: Optional runtime tag for per-runtime updates.
+        include_packages: Optional include-set of package names
+            (forwarded to runtime updates).
         discovered: Pre-discovered plugins.
+        on_package_starting: Called with ``(package_name)`` before each
+            package upgrade begins.
+        on_package_completed: Called with ``(package_name, success, skipped)``
+            after each package upgrade finishes.
 
     Returns:
         An :class:`UpdateResult` summarising the operation.
@@ -173,20 +185,15 @@ async def update_tool(
     if package_name is not None:
         # Single-package upgrade
         ref = PackageRef(name=package_name)
+        if on_package_starting is not None:
+            on_package_starting(package_name)
         action_result = await porringer.package.upgrade(
             plugin_name,
             ref,
             runtime_tag=runtime_tag,
             plugins=discovered,
         )
-        if action_result.skipped:
-            result.already_latest.append(package_name)
-        elif action_result.success:
-            result.packages_updated.append(package_name)
-            result.updated_packages.add(package_name)
-            _capture_versions(result, package_name, action_result)
-        else:
-            result.packages_failed.append(package_name)
+        _record_completed_event(result, action_result, package_name, on_package_completed)
         return result
 
     # Full-plugin update: re-sync all cached manifests for this plugin.
@@ -195,13 +202,18 @@ async def update_tool(
             porringer,
             plugin_name,
             runtime_tag,
+            include_packages=include_packages,
             discovered=discovered,
+            on_package_starting=on_package_starting,
+            on_package_completed=on_package_completed,
         )
 
     return await _update_plugin_via_manifests(
         porringer,
         plugin_name,
         discovered=discovered,
+        on_package_starting=on_package_starting,
+        on_package_completed=on_package_completed,
     )
 
 
@@ -210,12 +222,16 @@ async def _update_plugin_via_manifests(
     plugin_name: str,
     *,
     discovered: DiscoveredPlugins | None = None,
+    on_package_starting: Callable[[str], None] | None = None,
+    on_package_completed: Callable[[str, bool, bool], None] | None = None,
 ) -> UpdateResult:
     """Re-sync cached manifests scoped to a single plugin."""
     result = await update_all_tools(
         porringer,
         plugins={plugin_name},
         discovered=discovered,
+        on_package_starting=on_package_starting,
+        on_package_completed=on_package_completed,
     )
     result.plugin = plugin_name
     return result
@@ -228,8 +244,22 @@ async def update_runtime_plugin(
     *,
     include_packages: set[str] | None = None,
     discovered: DiscoveredPlugins | None = None,
+    on_package_starting: Callable[[str], None] | None = None,
+    on_package_completed: Callable[[str, bool, bool], None] | None = None,
 ) -> UpdateResult:
-    """Upgrade packages for a plugin scoped to a specific runtime."""
+    """Upgrade packages for a plugin scoped to a specific runtime.
+
+    Args:
+        porringer: The porringer API instance.
+        plugin_name: The installer plugin name.
+        runtime_tag: Runtime tag to scope the upgrade.
+        include_packages: Optional include-set of package names.
+        discovered: Pre-discovered plugins.
+        on_package_starting: Called with ``(package_name)`` before each
+            package upgrade begins.
+        on_package_completed: Called with ``(package_name, success, skipped)``
+            after each package upgrade finishes.
+    """
     result = UpdateResult(plugin=plugin_name)
     packages = await porringer.package.list_by_runtime(plugin_name, plugins=discovered)
     if packages is None:
@@ -241,6 +271,8 @@ async def update_runtime_plugin(
             pkg_name = str(pkg.name)
             if include_packages is not None and pkg_name not in include_packages:
                 continue
+            if on_package_starting is not None:
+                on_package_starting(pkg_name)
             ref = PackageRef(name=pkg_name)
             ar = await porringer.package.upgrade(
                 plugin_name,
@@ -248,14 +280,7 @@ async def update_runtime_plugin(
                 runtime_tag=runtime_tag,
                 plugins=discovered,
             )
-            if ar.skipped:
-                result.already_latest.append(pkg_name)
-            elif ar.success:
-                result.packages_updated.append(pkg_name)
-                result.updated_packages.add(pkg_name)
-                _capture_versions(result, pkg_name, ar)
-            else:
-                result.packages_failed.append(pkg_name)
+            _record_completed_event(result, ar, pkg_name, on_package_completed)
         break
     return result
 
@@ -290,12 +315,39 @@ async def remove_package(
     return action_result.success
 
 
+def _record_completed_event(
+    result: UpdateResult,
+    ar: SetupActionResult,
+    pkg_name: str,
+    on_package_completed: Callable[[str, bool, bool], None] | None,
+) -> None:
+    """Record a single completed-event into *result* and fire the callback."""
+    if ar.skipped:
+        if ar.skip_reason in {SkipReason.ALREADY_LATEST, SkipReason.ALREADY_INSTALLED}:
+            result.already_latest.append(pkg_name)
+        if on_package_completed is not None and pkg_name:
+            on_package_completed(pkg_name, False, True)
+    elif ar.success:
+        result.packages_updated.append(pkg_name)
+        if pkg_name:
+            result.updated_packages.add(pkg_name)
+        _capture_versions(result, pkg_name, ar)
+        if on_package_completed is not None and pkg_name:
+            on_package_completed(pkg_name, True, False)
+    else:
+        result.packages_failed.append(pkg_name)
+        if on_package_completed is not None and pkg_name:
+            on_package_completed(pkg_name, False, False)
+
+
 async def update_all_tools(
     porringer: API,
     plugins: set[str] | None = None,
     include_packages: set[str] | None = None,
     *,
     discovered: DiscoveredPlugins | None = None,
+    on_package_starting: Callable[[str], None] | None = None,
+    on_package_completed: Callable[[str, bool, bool], None] | None = None,
 ) -> UpdateResult:
     """Re-sync all cached project manifests (bulk update).
 
@@ -304,6 +356,10 @@ async def update_all_tools(
         plugins: Optional include-set of plugin names.
         include_packages: Optional include-set of package names.
         discovered: Pre-discovered plugins.
+        on_package_starting: Called with ``(package_name)`` before each
+            package action begins.
+        on_package_completed: Called with ``(package_name, success, skipped)``
+            after each package action completes.
 
     Returns:
         An :class:`UpdateResult` summarising the full run.
@@ -328,20 +384,16 @@ async def update_all_tools(
         )
         try:
             async for event in porringer.sync.execute_stream(params, plugins=discovered):
+                if isinstance(event, ActionStartedEvent):
+                    pkg_name = str(event.action.package.name) if event.action.package else ''
+                    if pkg_name and on_package_starting is not None:
+                        on_package_starting(pkg_name)
+                    continue
                 if not isinstance(event, ActionCompletedEvent):
                     continue
                 ar = event.result
                 pkg_name = str(ar.action.package.name) if ar.action.package else ''
-                if ar.skipped:
-                    if ar.skip_reason in {SkipReason.ALREADY_LATEST, SkipReason.ALREADY_INSTALLED}:
-                        result.already_latest.append(pkg_name)
-                elif ar.success:
-                    result.packages_updated.append(pkg_name)
-                    if pkg_name:
-                        result.updated_packages.add(pkg_name)
-                    _capture_versions(result, pkg_name, ar)
-                else:
-                    result.packages_failed.append(pkg_name)
+                _record_completed_event(result, ar, pkg_name, on_package_completed)
         except asyncio.CancelledError:
             raise
         result.manifests_processed += 1

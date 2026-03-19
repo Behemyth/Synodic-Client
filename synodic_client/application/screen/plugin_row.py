@@ -7,6 +7,8 @@ package rows, project child rows, and filter chips.
 
 from __future__ import annotations
 
+from enum import Enum
+
 from porringer.schema import PluginInfo
 from porringer.schema.plugin import PluginCapability, PluginKind
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -40,6 +42,7 @@ from synodic_client.application.theme import (
     PLUGIN_ROW_PROJECT_TAG_TRANSITIVE_STYLE,
     PLUGIN_ROW_REMOVE_STYLE,
     PLUGIN_ROW_STATUS_MIN_WIDTH,
+    PLUGIN_ROW_STATUS_PENDING_STYLE,
     PLUGIN_ROW_STATUS_STYLE,
     PLUGIN_ROW_STYLE,
     PLUGIN_ROW_TIMESTAMP_MIN_WIDTH,
@@ -58,6 +61,16 @@ from synodic_client.application.theme import (
     PROJECT_CHILD_TRANSITIVE_STYLE,
     PROJECT_CHILD_VERSION_STYLE,
 )
+
+
+class RowPhase(Enum):
+    """Mutually exclusive visual state for a :class:`PluginRow`."""
+
+    IDLE = 'idle'
+    CHECKING = 'checking'
+    PENDING = 'pending'
+    UPDATING = 'updating'
+
 
 # Row-spinner dimensions
 _ROW_SPINNER_SIZE = 12
@@ -249,15 +262,18 @@ class PluginProviderHeader(QFrame):
             update_btn.setToolTip('Not installed \u2014 cannot update')
 
     def set_updating(self, updating: bool) -> None:
-        """Toggle the button between *Updating…* and *Update* states."""
-        if self._update_btn is None:
-            return
+        """Toggle between *Updating…* (with spinner) and *Update* states."""
         if updating:
-            self._update_btn.setText('Updating\u2026')
-            self._update_btn.setEnabled(False)
+            if self._checking_spinner is not None:
+                self._checking_spinner.start()
+            if self._update_btn is not None:
+                self._update_btn.hide()
         else:
-            self._update_btn.setText('Update')
-            self._update_btn.setEnabled(True)
+            if self._checking_spinner is not None:
+                self._checking_spinner.stop()
+            if self._update_btn is not None:
+                self._update_btn.setText('Update')
+                self._update_btn.setEnabled(True)
 
     def set_checking(self, checking: bool) -> None:
         """Show or hide the inline checking spinner."""
@@ -331,7 +347,7 @@ class PluginRow(QFrame):
         self._signal_key = f'{data.plugin_name}:{data.runtime_tag}' if data.runtime_tag else data.plugin_name
         self._update_btn: QPushButton | None = None
         self._remove_btn: QPushButton | None = None
-        self._checking_spinner: _RowSpinner | None = None
+        self._row_spinner: _RowSpinner | None = None
         self._host_label: QLabel | None = None
         self._project_paths: list[str] = list(data.project_paths)
         self._project_labels: list[str] = [p.project_label for p in data.project_instances]
@@ -386,6 +402,11 @@ class PluginRow(QFrame):
         if data.show_toggle:
             self._build_toggle(layout, data)
 
+        # Inline spinner — always created so checking, pending, and
+        # updating flows can use it regardless of whether the toggle is shown.
+        self._row_spinner = _RowSpinner(self)
+        layout.addWidget(self._row_spinner)
+
         # Update button — always created for alignment, hidden when no update
         self._build_update_button(layout, data)
 
@@ -421,7 +442,7 @@ class PluginRow(QFrame):
         self._build_remove_button(layout, data)
 
     def _build_toggle(self, layout: QHBoxLayout, data: PluginRowData) -> None:
-        """Add the auto-update toggle and inline checking spinner."""
+        """Add the auto-update toggle button."""
         toggle_btn = QPushButton('Auto')
         toggle_btn.setCheckable(True)
         toggle_btn.setChecked(data.auto_update)
@@ -435,9 +456,6 @@ class PluginRow(QFrame):
             ),
         )
         layout.addWidget(toggle_btn)
-
-        self._checking_spinner = _RowSpinner(self)
-        layout.addWidget(self._checking_spinner)
 
     def _build_update_button(self, layout: QHBoxLayout, data: PluginRowData) -> None:
         """Add the per-package update button (always created, visibility toggled)."""
@@ -483,27 +501,65 @@ class PluginRow(QFrame):
         self._remove_btn = remove_btn
         layout.addWidget(remove_btn)
 
-    def set_updating(self, updating: bool) -> None:
-        """Toggle the button between *Updating…* and *Update* states."""
-        if self._update_btn is None:
-            return
-        if updating:
-            self._update_btn.setText('Updating\u2026')
-            self._update_btn.setEnabled(False)
+    def set_phase(self, phase: RowPhase) -> None:
+        """Transition the row to a mutually exclusive visual *phase*.
+
+        * ``IDLE`` — spinner stopped, status hidden, button restored.
+        * ``CHECKING`` — spinner running, button hidden.
+        * ``PENDING`` — spinner stopped, *Pending* text shown, button hidden.
+        * ``UPDATING`` — spinner running, status hidden, button hidden.
+        """
+        self._apply_phase_reset()
+
+        if phase == RowPhase.IDLE:
+            self._apply_phase_idle()
+        elif phase == RowPhase.PENDING:
+            self._apply_phase_pending()
         else:
+            # CHECKING and UPDATING both start spinner and hide update btn
+            self._apply_phase_spinner()
+
+    def _apply_phase_reset(self) -> None:
+        """Stop spinner and hide status — common entry for every transition."""
+        if self._row_spinner is not None:
+            self._row_spinner.stop()
+        if self._update_status_label is not None:
+            self._update_status_label.hide()
+
+    def _apply_phase_idle(self) -> None:
+        """Restore the update button to its default label and state."""
+        if self._update_btn is not None:
             self._update_btn.setText('Update')
             self._update_btn.setEnabled(True)
 
+    def _apply_phase_pending(self) -> None:
+        """Show *Pending* text and hide the update button."""
+        if self._update_status_label is not None:
+            self._update_status_label.setText('Pending')
+            self._update_status_label.setStyleSheet(PLUGIN_ROW_STATUS_PENDING_STYLE)
+            self._update_status_label.show()
+        if self._update_btn is not None:
+            self._update_btn.hide()
+
+    def _apply_phase_spinner(self) -> None:
+        """Start the spinner and hide the update button."""
+        if self._row_spinner is not None:
+            self._row_spinner.start()
+        if self._update_btn is not None:
+            self._update_btn.hide()
+
+    # Convenience aliases for backward-compatible call sites
+    def set_updating(self, updating: bool) -> None:
+        """Toggle between updating and idle states."""
+        self.set_phase(RowPhase.UPDATING if updating else RowPhase.IDLE)
+
     def set_checking(self, checking: bool) -> None:
-        """Show or hide the inline checking spinner."""
-        if self._checking_spinner is None:
-            return
-        if checking:
-            self._checking_spinner.start()
-            if self._update_btn is not None:
-                self._update_btn.hide()
-        else:
-            self._checking_spinner.stop()
+        """Toggle between checking and idle states."""
+        self.set_phase(RowPhase.CHECKING if checking else RowPhase.IDLE)
+
+    def set_pending(self, pending: bool) -> None:
+        """Toggle between pending and idle states."""
+        self.set_phase(RowPhase.PENDING if pending else RowPhase.IDLE)
 
     def set_removing(self, removing: bool) -> None:
         """Toggle the remove button between *Removing…* and *×* states."""

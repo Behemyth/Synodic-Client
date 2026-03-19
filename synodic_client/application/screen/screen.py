@@ -38,6 +38,7 @@ from synodic_client.application.screen.plugin_row import (
     PluginKindHeader,
     PluginProviderHeader,
     PluginRow,
+    RowPhase,
 )
 from synodic_client.application.screen.projects import ProjectsView
 from synodic_client.application.screen.schema import (
@@ -1381,6 +1382,39 @@ class ToolsView(QWidget):
             if isinstance(widget, PluginProviderHeader) and widget._signal_key == plugin_name:
                 widget.set_error(message)
                 break
+
+    # -- Per-package progress helpers for plugin-level updates --
+
+    def get_plugin_update_packages(self, signal_key: str) -> set[str]:
+        """Return the set of package names with known updates for *signal_key*."""
+        return set(self._get_plugin_updates(signal_key).keys())
+
+    def set_packages_pending(self, signal_key: str, package_names: set[str]) -> None:
+        """Mark matching package rows as *Pending* for a plugin-level update."""
+        for widget in self._section_widgets:
+            if (
+                isinstance(widget, PluginRow)
+                and widget._signal_key == signal_key
+                and widget._package_name in package_names
+            ):
+                widget.set_phase(RowPhase.PENDING)
+
+    def set_package_active(self, signal_key: str, package_name: str) -> None:
+        """Transition a package row from *Pending* to *Updating* (spinner)."""
+        for widget in self._section_widgets:
+            if (
+                isinstance(widget, PluginRow)
+                and widget._signal_key == signal_key
+                and widget._package_name == package_name
+            ):
+                widget.set_phase(RowPhase.UPDATING)
+                break
+
+    def clear_plugin_row_states(self, signal_key: str) -> None:
+        """Reset pending / updating state on all package rows for *signal_key*."""
+        for widget in self._section_widgets:
+            if isinstance(widget, PluginRow) and widget._signal_key == signal_key:
+                widget.set_phase(RowPhase.IDLE)
 
 
 class MainWindow(QMainWindow):
