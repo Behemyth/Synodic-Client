@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from synodic_client.application.screen.update_banner import UpdateBanner
 from synodic_client.application.theme import (
     UPDATE_STATUS_AVAILABLE_STYLE,
@@ -13,6 +15,7 @@ from synodic_client.application.theme import (
 from synodic_client.application.update_controller import UpdateController
 from synodic_client.application.update_model import UpdateModel
 from synodic_client.operations.schema import UpdateCheckResult
+from synodic_client.schema import UpdateState
 
 from .conftest import make_config_store, make_resolved_config
 
@@ -576,3 +579,73 @@ class TestApplyGuard:
         assert banner.state.name == 'HIDDEN'
         client.apply_update_on_exit.assert_not_called()
         app.quit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# DOWNLOADING guard in _do_check
+# ---------------------------------------------------------------------------
+
+
+class TestDoCheckDownloadingGuard:
+    """Verify _do_check skips checks when a download is in progress."""
+
+    @staticmethod
+    @pytest.mark.parametrize('silent', [False, True], ids=['manual', 'silent'])
+    def test_check_skipped_when_downloading(silent: bool) -> None:
+        """_do_check should return early without creating a task when DOWNLOADING."""
+        ctrl, _app, client, banner, model = _make_controller()
+        spy = ModelSpy(model)
+        client.updater.state = UpdateState.DOWNLOADING
+
+        with patch.object(ctrl, '_set_task') as mock_set_task:
+            ctrl._do_check(silent=silent)
+
+        mock_set_task.assert_not_called()
+        # Button should be re-enabled
+        assert True in spy.check_button_enabled
+
+    @staticmethod
+    def test_check_proceeds_when_not_downloading() -> None:
+        """_do_check should proceed normally when updater is not DOWNLOADING."""
+        ctrl, _app, client, banner, model = _make_controller()
+        client.updater.state = UpdateState.NO_UPDATE
+
+        with patch.object(ctrl, '_set_task') as mock_set_task:
+            ctrl._do_check(silent=False)
+
+        mock_set_task.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# request_retry / request_apply
+# ---------------------------------------------------------------------------
+
+
+class TestRequestRetry:
+    """Verify request_retry clears the failed version and re-checks."""
+
+    @staticmethod
+    def test_clears_failed_version_and_checks() -> None:
+        """request_retry should clear _failed_version then trigger a check."""
+        ctrl, _app, _client, banner, model = _make_controller()
+        ctrl._failed_version = '2.0.0'
+
+        with patch.object(ctrl, 'check_now') as mock_check:
+            ctrl.request_retry()
+
+        assert ctrl._failed_version is None
+        mock_check.assert_called_once_with(silent=True)
+
+
+class TestRequestApply:
+    """Verify request_apply delegates to _apply_update."""
+
+    @staticmethod
+    def test_delegates_to_apply_update() -> None:
+        """request_apply should call _apply_update(silent=False)."""
+        ctrl, _app, _client, banner, model = _make_controller()
+
+        with patch.object(ctrl, '_apply_update') as mock_apply:
+            ctrl.request_apply()
+
+        mock_apply.assert_called_once_with(silent=False)

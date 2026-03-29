@@ -25,9 +25,7 @@ from synodic_client.config import (
 from synodic_client.schema import (
     DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
     DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES,
-    GITHUB_REPO_URL,
     ResolvedConfig,
-    UpdateChannel,
     UpdateConfig,
     UserConfig,
 )
@@ -160,7 +158,11 @@ def update_user_config(**changes: object) -> ResolvedConfig:
 
 
 def resolve_update_config(config: ResolvedConfig) -> UpdateConfig:
-    """Derive an ``UpdateConfig`` from resolved configuration values.
+    """Derive an :class:`UpdateConfig` from resolved configuration values.
+
+    Delegates to :meth:`UpdateConfig.from_resolved` so the type owns
+    its own construction while this module stays the canonical entry
+    point for all resolution logic.
 
     Args:
         config: A resolved configuration snapshot.
@@ -168,11 +170,4 @@ def resolve_update_config(config: ResolvedConfig) -> UpdateConfig:
     Returns:
         An ``UpdateConfig`` ready to initialise the updater.
     """
-    channel = UpdateChannel.DEVELOPMENT if config.update_channel == 'dev' else UpdateChannel.STABLE
-
-    return UpdateConfig(
-        channel=channel,
-        repo_url=config.update_source or GITHUB_REPO_URL,
-        auto_update_interval_minutes=config.auto_update_interval_minutes,
-        tool_update_interval_minutes=config.tool_update_interval_minutes,
-    )
+    return UpdateConfig.from_resolved(config)

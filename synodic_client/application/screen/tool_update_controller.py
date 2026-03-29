@@ -29,9 +29,7 @@ from synodic_client.operations.tool import (
     update_all_tools,
     update_tool,
 )
-from synodic_client.resolution import (
-    resolve_update_config,
-)
+from synodic_client.resolution import resolve_update_config
 
 if TYPE_CHECKING:
     from synodic_client.application.config_store import ConfigStore

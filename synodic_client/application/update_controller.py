@@ -31,10 +31,8 @@ from synodic_client.application.theme import (
 from synodic_client.application.update_model import UpdateModel
 from synodic_client.operations.schema import UpdateCheckResult
 from synodic_client.operations.update import apply_self_update, check_self_update, download_self_update
-from synodic_client.resolution import (
-    ResolvedConfig,
-    resolve_update_config,
-)
+from synodic_client.resolution import resolve_update_config
+from synodic_client.schema import ResolvedConfig, UpdateState
 from synodic_client.startup import sync_startup
 
 if TYPE_CHECKING:
@@ -93,7 +91,7 @@ class UpdateController:
 
         # Track update-relevant config fields to avoid reinitialising
         # on every config save (e.g. timestamp-only changes).
-        self._update_config_key = self._extract_update_key(store.config)
+        self._update_config_key = resolve_update_config(store.config)
 
         # Periodic auto-update timer
         self._auto_update_timer: QTimer | None = None
@@ -225,7 +223,7 @@ class UpdateController:
             return
         self._auto_apply = config.auto_apply
 
-        new_key = self._extract_update_key(config)
+        new_key = resolve_update_config(config)
         if new_key == self._update_config_key:
             return
         self._update_config_key = new_key
@@ -236,16 +234,6 @@ class UpdateController:
     # ------------------------------------------------------------------
     # Updater re-initialisation
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _extract_update_key(config: ResolvedConfig) -> tuple[object, ...]:
-        """Return a hashable tuple of the fields that affect the updater."""
-        return (
-            config.update_source,
-            config.update_channel,
-            config.auto_update_interval_minutes,
-            config.auto_apply,
-        )
 
     def _reinitialize_updater(self, config: ResolvedConfig) -> None:
         """Re-derive update settings and restart the updater and timer.
@@ -287,6 +275,15 @@ class UpdateController:
             self._model.set_check_button_enabled(True)
             if not silent:
                 self._model.set_error('Updater is not initialized.')
+            return
+
+        # A download may still be running in a thread-pool executor even
+        # after the asyncio Task wrapper has been cancelled.  Starting a
+        # new check would trigger a second concurrent download for the
+        # same package, leading to a file-rename race on Windows.
+        if self._client.updater.state == UpdateState.DOWNLOADING:
+            logger.debug('Skipping update check — download already in progress')
+            self._model.set_check_button_enabled(True)
             return
 
         # Always disable the button; only show "Checking…" when no
