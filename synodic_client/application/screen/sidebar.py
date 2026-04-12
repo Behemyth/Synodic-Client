@@ -9,7 +9,6 @@ selection, removal, and addition.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -63,15 +62,15 @@ class ManifestItem(QFrame):
     :attr:`remove_requested` when the close button is pressed.
     """
 
-    clicked = Signal(Path)
-    """Emitted with the directory path when the item is clicked."""
+    clicked = Signal(str)
+    """Emitted with the item key when the item is clicked."""
 
-    remove_requested = Signal(Path)
-    """Emitted with the directory path when the × button is clicked."""
+    remove_requested = Signal(str)
+    """Emitted with the item key when the × button is clicked."""
 
     def __init__(
         self,
-        path: Path,
+        key: str,
         name: str = '',
         *,
         valid: bool = True,
@@ -80,14 +79,14 @@ class ManifestItem(QFrame):
         """Initialise the item.
 
         Args:
-            path: Absolute path to the project directory.
-            name: Optional human-readable name (falls back to last path component).
+            key: Unique identifier (resolved path string or URL).
+            name: Optional human-readable name.
             valid: When ``False`` the item renders dimmed.
             parent: Optional parent widget.
         """
         super().__init__(parent)
         self.setObjectName('sidebarItem')
-        self._path = path
+        self._key = key
         self._name = name
         self._valid = valid
         self._selected = False
@@ -100,10 +99,10 @@ class ManifestItem(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        display = name or path.name or str(path)
+        display = name or key.rsplit('/', 1)[-1] or key
         self._label = QLabel(display)
         self._label.setStyleSheet(SIDEBAR_LABEL_STYLE if valid else SIDEBAR_LABEL_DIMMED_STYLE)
-        self._label.setToolTip(str(path))
+        self._label.setToolTip(key)
         layout.addWidget(self._label, stretch=1)
 
         # Phase indicator (updated externally)
@@ -114,19 +113,19 @@ class ManifestItem(QFrame):
         self._close_btn = QPushButton('\u00d7')  # ×
         self._close_btn.setFixedSize(18, 18)
         self._close_btn.setStyleSheet(SIDEBAR_CLOSE_STYLE)
-        self._close_btn.setToolTip('Remove from cache')
+        self._close_btn.setToolTip('Remove')
         self._close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._close_btn.clicked.connect(self._on_close)
         layout.addWidget(self._close_btn)
 
-        self.setToolTip(str(path))
+        self.setToolTip(key)
 
     # --- Properties -------------------------------------------------------
 
     @property
-    def path(self) -> Path:
-        """Return the project directory path."""
-        return self._path
+    def key(self) -> str:
+        """Return the item key."""
+        return self._key
 
     @property
     def selected(self) -> bool:
@@ -167,11 +166,11 @@ class ManifestItem(QFrame):
 
     def mousePressEvent(self, _event: object) -> None:
         """Emit :attr:`clicked` on mouse press."""
-        self.clicked.emit(self._path)
+        self.clicked.emit(self._key)
 
     def _on_close(self) -> None:
         """Emit :attr:`remove_requested` when the × button is clicked."""
-        self.remove_requested.emit(self._path)
+        self.remove_requested.emit(self._key)
 
 
 class ManifestSidebar(QWidget):
@@ -181,11 +180,11 @@ class ManifestSidebar(QWidget):
     a trailing *Add* button.  Emits signals for user interactions.
     """
 
-    selection_changed = Signal(Path)
-    """Emitted with the directory path when an item is clicked."""
+    selection_changed = Signal(str)
+    """Emitted with the item key when an item is clicked."""
 
-    remove_requested = Signal(Path)
-    """Emitted with the directory path when an item's close button is clicked."""
+    remove_requested = Signal(str)
+    """Emitted with the item key when an item's close button is clicked."""
 
     add_requested = Signal()
     """Emitted when the Add (+) button is clicked."""
@@ -194,7 +193,7 @@ class ManifestSidebar(QWidget):
         """Initialise the sidebar."""
         super().__init__(parent)
         self._items: list[ManifestItem] = []
-        self._selected_path: Path | None = None
+        self._selected_key: str | None = None
 
         self.setFixedWidth(SIDEBAR_WIDTH)
 
@@ -245,15 +244,15 @@ class ManifestSidebar(QWidget):
     # --- Public API --------------------------------------------------------
 
     @property
-    def selected_path(self) -> Path | None:
-        """Return the currently selected directory path."""
-        return self._selected_path
+    def selected_key(self) -> str | None:
+        """Return the currently selected item key."""
+        return self._selected_key
 
     def set_directories(
         self,
-        directories: list[tuple[Path, str, bool]],
+        directories: list[tuple[str, str, bool]],
     ) -> None:
-        """Rebuild all items from a list of ``(path, name, valid)`` tuples.
+        """Rebuild all items from a list of ``(key, name, valid)`` tuples.
 
         Any previous selection is **not** restored — callers should call
         :meth:`select` afterwards if desired.
@@ -263,42 +262,35 @@ class ManifestSidebar(QWidget):
             self._column.removeWidget(item)
             item.deleteLater()
         self._items.clear()
-        self._selected_path = None
+        self._selected_key = None
 
         # Insert new items before the trailing stretch
-        for insert_idx, (path, name, valid) in enumerate(directories):
-            item = ManifestItem(path, name, valid=valid, parent=self._container)
+        for insert_idx, (key, name, valid) in enumerate(directories):
+            item = ManifestItem(key, name, valid=valid, parent=self._container)
             item.clicked.connect(self._on_item_clicked)
             item.remove_requested.connect(self._on_item_remove)
             self._column.insertWidget(insert_idx, item)
             self._items.append(item)
 
-    def select(self, path: Path | None) -> None:
-        """Programmatically select an item by path.
+    def select(self, key: str | None) -> None:
+        """Programmatically select an item by key.
 
-        If *path* is ``None`` or not found, the first item (if any) is
+        If *key* is ``None`` or not found, the first item (if any) is
         selected instead.
         """
-        # Build a fast lookup: exact path → item, resolved path → item
-        exact: dict[Path, ManifestItem] = {i.path: i for i in self._items}
-
-        target: Path | None = None
-        if path is not None:
-            if path in exact:
-                target = path
-            else:
-                resolved = path.resolve()
-                for item in self._items:
-                    if item.path.resolve() == resolved:
-                        target = item.path
-                        break
+        target: str | None = None
+        if key is not None:
+            for item in self._items:
+                if item.key == key:
+                    target = key
+                    break
 
         if target is None and self._items:
-            target = self._items[0].path
+            target = self._items[0].key
 
-        self._selected_path = target
+        self._selected_key = target
         for item in self._items:
-            item.selected = item.path == target
+            item.selected = item.key == target
 
         if target is not None:
             self.selection_changed.emit(target)
@@ -309,22 +301,22 @@ class ManifestSidebar(QWidget):
         for item in self._items:
             item.setEnabled(enabled)
 
-    def get_item(self, path: Path) -> ManifestItem | None:
-        """Return the :class:`ManifestItem` for *path*, or ``None``."""
+    def get_item(self, key: str) -> ManifestItem | None:
+        """Return the :class:`ManifestItem` for *key*, or ``None``."""
         for item in self._items:
-            if item.path == path:
+            if item.key == key:
                 return item
         return None
 
     # --- Internal slots ----------------------------------------------------
 
-    def _on_item_clicked(self, path: Path) -> None:
+    def _on_item_clicked(self, key: str) -> None:
         """Handle an item click — update selection and emit signal."""
-        self._selected_path = path
+        self._selected_key = key
         for item in self._items:
-            item.selected = item.path == path
-        self.selection_changed.emit(path)
+            item.selected = item.key == key
+        self.selection_changed.emit(key)
 
-    def _on_item_remove(self, path: Path) -> None:
+    def _on_item_remove(self, key: str) -> None:
         """Forward the remove request signal."""
-        self.remove_requested.emit(path)
+        self.remove_requested.emit(key)

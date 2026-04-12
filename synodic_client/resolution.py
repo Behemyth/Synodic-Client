@@ -125,6 +125,7 @@ def _resolve_from_user(user: UserConfig) -> ResolvedConfig:
         debug_logging=debug_logging,
         last_client_update=user.last_client_update,
         last_tool_updates=user.last_tool_updates,
+        setup_profiles=user.setup_profiles or [],
     )
 
 

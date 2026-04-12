@@ -22,50 +22,50 @@ class TestManifestItemInit:
     """Basic construction and property access."""
 
     @staticmethod
-    def test_path_property(tmp_path: Path) -> None:
-        """Verify the path property returns the construction path."""
-        item = ManifestItem(tmp_path, 'proj')
-        assert item.path == tmp_path
+    def test_key_property(tmp_path: object) -> None:
+        """Verify the key property returns the construction key."""
+        item = ManifestItem('/some/path', 'proj')
+        assert item.key == '/some/path'
 
     @staticmethod
-    def test_default_not_selected(tmp_path: Path) -> None:
+    def test_default_not_selected() -> None:
         """Verify a new item is not selected by default."""
-        item = ManifestItem(tmp_path, 'proj')
+        item = ManifestItem('/some/path', 'proj')
         assert item.selected is False
 
     @staticmethod
-    def test_display_name_uses_explicit_name(tmp_path: Path) -> None:
+    def test_display_name_uses_explicit_name() -> None:
         """Verify label uses the explicit display name when provided."""
-        item = ManifestItem(tmp_path, 'My Project')
+        item = ManifestItem('/some/path', 'My Project')
         assert item._label.text() == 'My Project'
 
     @staticmethod
-    def test_display_name_falls_back_to_path_name(tmp_path: Path) -> None:
-        """Verify label falls back to the path stem when no name is given."""
-        item = ManifestItem(tmp_path)
-        assert item._label.text() == tmp_path.name
+    def test_display_name_falls_back_to_key_basename() -> None:
+        """Verify label falls back to the last path/URL segment when no name is given."""
+        item = ManifestItem('/some/path/mydir')
+        assert item._label.text() == 'mydir'
 
     @staticmethod
-    def test_tooltip_shows_full_path(tmp_path: Path) -> None:
-        """Verify the tooltip shows the full path string."""
-        item = ManifestItem(tmp_path, 'proj')
-        assert item.toolTip() == str(tmp_path)
+    def test_tooltip_shows_full_key() -> None:
+        """Verify the tooltip shows the full key string."""
+        item = ManifestItem('/some/path', 'proj')
+        assert item.toolTip() == '/some/path'
 
 
 class TestManifestItemSelection:
     """Selection state changes."""
 
     @staticmethod
-    def test_set_selected_true(tmp_path: Path) -> None:
+    def test_set_selected_true() -> None:
         """Verify setting selected to True updates the state."""
-        item = ManifestItem(tmp_path, 'proj')
+        item = ManifestItem('/some/path', 'proj')
         item.selected = True
         assert item.selected is True
 
     @staticmethod
-    def test_set_selected_false(tmp_path: Path) -> None:
+    def test_set_selected_false() -> None:
         """Verify toggling selected back to False works."""
-        item = ManifestItem(tmp_path, 'proj')
+        item = ManifestItem('/some/path', 'proj')
         item.selected = True
         item.selected = False
         assert item.selected is False
@@ -86,9 +86,9 @@ class TestManifestItemPhase:
         ],
         ids=['loading', 'ready', 'error', 'installing', 'done'],
     )
-    def test_phase_label(tmp_path: Path, phase: PreviewPhase, expected_text: str) -> None:
+    def test_phase_label(tmp_path: object, phase: PreviewPhase, expected_text: str) -> None:
         """Verify phase label text matches the phase enum."""
-        item = ManifestItem(tmp_path, 'proj')
+        item = ManifestItem('/some/path', 'proj')
         item.set_phase(phase)
         assert not item._phase_label.isHidden()
         assert item._phase_label.text() == expected_text
@@ -98,22 +98,22 @@ class TestManifestItemSignals:
     """Signal emission."""
 
     @staticmethod
-    def test_clicked_on_mouse_press(tmp_path: Path) -> None:
+    def test_clicked_on_mouse_press() -> None:
         """Verify clicked signal fires on mousePressEvent."""
-        item = ManifestItem(tmp_path, 'proj')
-        received: list[Path] = []
+        item = ManifestItem('/some/path', 'proj')
+        received: list[str] = []
         item.clicked.connect(received.append)
         item.mousePressEvent(None)
-        assert received == [tmp_path]
+        assert received == ['/some/path']
 
     @staticmethod
-    def test_remove_requested_on_close(tmp_path: Path) -> None:
+    def test_remove_requested_on_close() -> None:
         """Verify remove_requested signal fires on close button click."""
-        item = ManifestItem(tmp_path, 'proj')
-        received: list[Path] = []
+        item = ManifestItem('/some/path', 'proj')
+        received: list[str] = []
         item.remove_requested.connect(received.append)
         item._close_btn.click()
-        assert received == [tmp_path]
+        assert received == ['/some/path']
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ class TestManifestSidebarInit:
     def test_default_no_items() -> None:
         """Verify a new sidebar has no selection."""
         sidebar = ManifestSidebar()
-        assert sidebar.selected_path is None
+        assert sidebar.selected_key is None
 
     @staticmethod
     def test_fixed_width() -> None:
@@ -141,100 +141,87 @@ class TestManifestSidebarSetDirectories:
     """Populating the sidebar with items."""
 
     @staticmethod
-    def test_creates_items(tmp_path: Path) -> None:
+    def test_creates_items(tmp_path: object) -> None:
         """Verify set_directories creates the expected number of items."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        d2 = tmp_path / 'b'
-        sidebar.set_directories([(d1, 'A', True), (d2, 'B', True)])
+        sidebar.set_directories([('/a', 'A', True), ('/b', 'B', True)])
         assert len(sidebar._items) == _EXPECTED_DIRECTORY_COUNT
 
     @staticmethod
-    def test_replaces_previous_items(tmp_path: Path) -> None:
+    def test_replaces_previous_items() -> None:
         """Verify set_directories replaces prior items completely."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        d2 = tmp_path / 'b'
-        d3 = tmp_path / 'c'
-        sidebar.set_directories([(d1, 'A', True), (d2, 'B', True)])
-        sidebar.set_directories([(d3, 'C', True)])
+        sidebar.set_directories([('/a', 'A', True), ('/b', 'B', True)])
+        sidebar.set_directories([('/c', 'C', True)])
         assert len(sidebar._items) == 1
-        assert sidebar._items[0].path == d3
+        assert sidebar._items[0].key == '/c'
 
     @staticmethod
-    def test_clears_selection(tmp_path: Path) -> None:
+    def test_clears_selection() -> None:
         """Verify set_directories resets the selection to None."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        sidebar.set_directories([(d1, 'A', True)])
-        sidebar.select(d1)
-        sidebar.set_directories([(d1, 'A', True)])
-        assert sidebar.selected_path is None
+        sidebar.set_directories([('/a', 'A', True)])
+        sidebar.select('/a')
+        sidebar.set_directories([('/a', 'A', True)])
+        assert sidebar.selected_key is None
 
 
 class TestManifestSidebarSelect:
     """Selection behaviour."""
 
     @staticmethod
-    def test_select_by_path(tmp_path: Path) -> None:
-        """Verify selecting a path updates selected_path."""
+    def test_select_by_key() -> None:
+        """Verify selecting a key updates selected_key."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        d2 = tmp_path / 'b'
-        sidebar.set_directories([(d1, 'A', True), (d2, 'B', True)])
-        sidebar.select(d2)
-        assert sidebar.selected_path == d2
+        sidebar.set_directories([('/a', 'A', True), ('/b', 'B', True)])
+        sidebar.select('/b')
+        assert sidebar.selected_key == '/b'
 
     @staticmethod
-    def test_select_none_falls_back_to_first(tmp_path: Path) -> None:
+    def test_select_none_falls_back_to_first() -> None:
         """Verify selecting None falls back to the first item."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        d2 = tmp_path / 'b'
-        sidebar.set_directories([(d1, 'A', True), (d2, 'B', True)])
+        sidebar.set_directories([('/a', 'A', True), ('/b', 'B', True)])
         sidebar.select(None)
-        assert sidebar.selected_path == d1
+        assert sidebar.selected_key == '/a'
 
     @staticmethod
-    def test_select_missing_path_falls_back_to_first(tmp_path: Path) -> None:
-        """Verify selecting a nonexistent path falls back to the first item."""
+    def test_select_missing_key_falls_back_to_first() -> None:
+        """Verify selecting a nonexistent key falls back to the first item."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        sidebar.set_directories([(d1, 'A', True)])
-        sidebar.select(tmp_path / 'nonexistent')
-        assert sidebar.selected_path == d1
+        sidebar.set_directories([('/a', 'A', True)])
+        sidebar.select('/nonexistent')
+        assert sidebar.selected_key == '/a'
 
     @staticmethod
-    def test_select_emits_signal(tmp_path: Path) -> None:
-        """Verify select emits selection_changed with the selected path."""
+    def test_select_emits_signal() -> None:
+        """Verify select emits selection_changed with the selected key."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        sidebar.set_directories([(d1, 'A', True)])
-        received: list[Path] = []
+        sidebar.set_directories([('/a', 'A', True)])
+        received: list[str] = []
         sidebar.selection_changed.connect(received.append)
-        sidebar.select(d1)
-        assert received == [d1]
+        sidebar.select('/a')
+        assert received == ['/a']
 
 
 class TestManifestSidebarGetItem:
-    """Finding items by path."""
+    """Finding items by key."""
 
     @staticmethod
-    def test_found(tmp_path: Path) -> None:
-        """Verify get_item returns the item matching the given path."""
+    def test_found() -> None:
+        """Verify get_item returns the item matching the given key."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        sidebar.set_directories([(d1, 'A', True)])
-        item = sidebar.get_item(d1)
+        sidebar.set_directories([('/a', 'A', True)])
+        item = sidebar.get_item('/a')
         assert item is not None
-        assert item.path == d1
+        assert item.key == '/a'
 
     @staticmethod
-    def test_not_found(tmp_path: Path) -> None:
-        """Verify get_item returns None for an unknown path."""
+    def test_not_found() -> None:
+        """Verify get_item returns None for an unknown key."""
         sidebar = ManifestSidebar()
         sidebar.set_directories([])
-        assert sidebar.get_item(tmp_path / 'x') is None
+        assert sidebar.get_item('/x') is None
 
 
 class TestManifestSidebarSignals:
@@ -253,9 +240,9 @@ class TestManifestSidebarSignals:
     def test_remove_requested_forwarded(tmp_path: Path) -> None:
         """Verify remove_requested is forwarded from child items."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
+        d1 = str(tmp_path / 'a')
         sidebar.set_directories([(d1, 'A', True)])
-        received: list[Path] = []
+        received: list[str] = []
         sidebar.remove_requested.connect(received.append)
         # Simulate the item's close button click
         sidebar._items[0]._close_btn.click()
@@ -265,10 +252,10 @@ class TestManifestSidebarSignals:
     def test_selection_changed_on_item_click(tmp_path: Path) -> None:
         """Verify selection_changed fires when an item is clicked."""
         sidebar = ManifestSidebar()
-        d1 = tmp_path / 'a'
-        d2 = tmp_path / 'b'
+        d1 = str(tmp_path / 'a')
+        d2 = str(tmp_path / 'b')
         sidebar.set_directories([(d1, 'A', True), (d2, 'B', True)])
-        received: list[Path] = []
+        received: list[str] = []
         sidebar.selection_changed.connect(received.append)
         sidebar._items[1].mousePressEvent(None)
         assert received == [d2]

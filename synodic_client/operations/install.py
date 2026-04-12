@@ -38,6 +38,7 @@ from synodic_client.operations.schema import (
     PreviewPluginsQueried,
     PreviewReady,
     PreviewResult,
+    SetupProfile,
     resolve_action_status,
 )
 
@@ -46,6 +47,25 @@ if TYPE_CHECKING:
     from porringer.backend.command.core.discovery import DiscoveredPlugins
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# URL validation
+# ---------------------------------------------------------------------------
+
+
+def validate_profile_url(url: str) -> None:
+    """Validate that *url* is an HTTPS URL.
+
+    Raises:
+        ValueError: If the URL is not HTTPS.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme != 'https':
+        msg = f'Only HTTPS URLs are allowed for profiles and manifests, got: {url}'
+        raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +106,54 @@ async def resolve_manifest_path(url: str) -> tuple[Path, str | None]:
         raise RuntimeError(msg)
 
     return dest, temp_dir
+
+
+async def resolve_profile(url: str) -> tuple[SetupProfile, str | None]:
+    """Download and parse a remote setup profile.
+
+    Validates that *url* and all manifest URLs within the profile are
+    HTTPS.
+
+    Args:
+        url: HTTPS URL of the profile JSON file.
+
+    Returns:
+        ``(profile, temp_dir)`` — *temp_dir* is the temporary directory
+        used for the download.
+
+    Raises:
+        ValueError: If *url* or any manifest URL is not HTTPS.
+        RuntimeError: If the download or parse fails.
+    """
+    import json
+
+    from porringer.api import API as _API
+
+    validate_profile_url(url)
+
+    temp_dir = tempfile.mkdtemp(prefix='synodic_profile_')
+    dest = Path(temp_dir) / 'profile.json'
+
+    params = DownloadParameters(url=url, destination=dest, timeout=3)
+    result = await _API.download(params)
+
+    if not result.success:
+        safe_rmtree(temp_dir)
+        msg = f'Failed to download profile:\n{result.message}'
+        raise RuntimeError(msg)
+
+    try:
+        data = json.loads(dest.read_text(encoding='utf-8'))
+        profile = SetupProfile.model_validate(data)
+    except Exception as exc:
+        safe_rmtree(temp_dir)
+        msg = f'Failed to parse profile from {url}'
+        raise RuntimeError(msg) from exc
+
+    for manifest_url in profile.manifests:
+        validate_profile_url(manifest_url)
+
+    return profile, temp_dir
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +211,8 @@ async def preview_manifest_stream(
 
         async for event in porringer.sync.execute_stream(params, plugins=discovered):
             if isinstance(event, ManifestParsedEvent):
+                if event.manifest.manifest_path is not None:
+                    manifest_path_str = str(event.manifest.manifest_path)
                 yield PreviewManifestParsed(
                     manifest=event.manifest,
                     manifest_path=manifest_path_str,
@@ -158,6 +228,8 @@ async def preview_manifest_stream(
                 )
 
             elif isinstance(event, ManifestLoadedEvent):
+                if event.manifest.manifest_path is not None:
+                    manifest_path_str = str(event.manifest.manifest_path)
                 yield PreviewReady(
                     manifest=event.manifest,
                     manifest_path=manifest_path_str,

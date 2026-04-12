@@ -19,6 +19,7 @@ from synodic_client.cli.config import config_app
 from synodic_client.cli.debug import debug_app
 from synodic_client.cli.install import install
 from synodic_client.cli.project import project_app
+from synodic_client.cli.setup import setup_app
 from synodic_client.cli.tool import tool_app
 from synodic_client.cli.update import update_app
 
@@ -74,3 +75,4 @@ app.command('install')(install)
 app.add_typer(config_app, name='config')
 app.add_typer(update_app, name='update')
 app.add_typer(debug_app, name='debug')
+app.add_typer(setup_app, name='setup')

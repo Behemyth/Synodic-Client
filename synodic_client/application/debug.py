@@ -194,9 +194,9 @@ class DebugHandler:
             return json.dumps({'error': 'projects view not initialised — run show_main first'})
 
         if arg:
-            target = Path(arg)
+            target = str(Path(arg).resolve())
         else:
-            target = projects_view._sidebar.selected_path
+            target = projects_view._sidebar.selected_key
             if target is None:
                 return json.dumps({'error': 'no project selected and no path argument provided'})
 

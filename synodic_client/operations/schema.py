@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from porringer.schema import PluginCapability, SetupAction, SetupActionResult, SetupResults, SkipReason, SyncStrategy
 from porringer.schema.plugin import PluginKind
+from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Status resolution helpers
@@ -537,3 +538,20 @@ GUI_ONLY_ACTIONS: frozenset[str] = frozenset({
     'apply_update',
     'select_project',
 })
+
+
+# ---------------------------------------------------------------------------
+# Setup profiles
+# ---------------------------------------------------------------------------
+
+
+class SetupProfile(BaseModel):
+    """Schema for a remote setup profile JSON file.
+
+    A profile references multiple manifest URLs that together describe
+    a complete machine setup.
+    """
+
+    version: str
+    name: str
+    manifests: list[str]

@@ -43,3 +43,20 @@ class Snapshot:
 
     plugin_capabilities: dict[str, frozenset[PluginCapability]] = field(default_factory=dict)
     """Protocol capabilities reported for each discovered plugin."""
+
+    setup_manifests: list[SetupManifest] = field(default_factory=list)
+    """Remote manifest URLs imported from setup profiles."""
+
+
+@dataclass(frozen=True, slots=True)
+class SetupManifest:
+    """A remote manifest URL imported from a setup profile."""
+
+    url: str
+    """The HTTPS URL of the manifest."""
+
+    name: str
+    """Human-readable label derived from the profile or the URL."""
+
+    profile_url: str
+    """The profile URL that imported this manifest."""

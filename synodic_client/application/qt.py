@@ -14,7 +14,7 @@ from collections.abc import Callable
 import qasync
 from porringer.api import API
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from synodic_client.application.config_store import ConfigStore
 from synodic_client.application.debug import DebugHandler, DebugServices
@@ -63,14 +63,22 @@ def _init_services(logger: logging.Logger) -> tuple[Client, API, ResolvedConfig]
     return client, porringer, config
 
 
-def _process_uri(uri: str, handler: Callable[[str], None]) -> None:
-    """Parse a ``synodic://`` URI and dispatch install actions."""
+def _process_uri(
+    uri: str,
+    install_handler: Callable[[str], None],
+    setup_handler: Callable[[str], None] | None = None,
+) -> None:
+    """Parse a ``synodic://`` URI and dispatch actions."""
     parsed_data = parse_uri(uri)
     action = parsed_data.get('action')
     if action == 'install':
         manifests = parsed_data.get('manifest')
         if isinstance(manifests, list) and manifests:
-            handler(manifests[0])
+            install_handler(manifests[0])
+    elif action == 'setup' and setup_handler is not None:
+        profiles = parsed_data.get('profile')
+        if isinstance(profiles, list) and profiles:
+            setup_handler(profiles[0])
 
 
 _SHUTDOWN_TIMEOUT: float = 3.0
@@ -223,6 +231,69 @@ def _configure_startup(
         pass
 
 
+def _create_uri_handlers(
+    porringer: API,
+    store: ConfigStore,
+    screen: Screen,
+    logger: logging.Logger,
+) -> tuple[Callable[[str], None], Callable[[str], None], list[InstallPreviewWindow]]:
+    """Build the install and setup URI handler callbacks.
+
+    Returns:
+        ``(handle_install, handle_setup, install_windows)`` where the
+        list keeps :class:`InstallPreviewWindow` references alive.
+    """
+    install_windows: list[InstallPreviewWindow] = []
+
+    def _handle_install_uri(manifest_url: str) -> None:
+        result = QMessageBox.question(
+            None,
+            'Install Request',
+            f'A link wants to install from:\n\n{manifest_url}\n\nAllow?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            logger.info('User denied install URI: %s', manifest_url)
+            return
+        logger.info('Opening install preview for: %s', manifest_url)
+        window = InstallPreviewWindow(
+            porringer,
+            manifest_url,
+            config=store.config,
+        )
+        install_windows.append(window)
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        window.start()
+
+    def _handle_setup_uri(profile_url: str) -> None:
+        from synodic_client.operations.install import validate_profile_url
+
+        try:
+            validate_profile_url(profile_url)
+        except ValueError:
+            logger.warning('Rejected non-HTTPS setup URI: %s', profile_url)
+            return
+
+        result = QMessageBox.question(
+            None,
+            'Setup Profile Request',
+            f'A link wants to add a setup profile from:\n\n{profile_url}\n\nAllow?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            logger.info('User denied setup URI: %s', profile_url)
+            return
+
+        logger.info('Adding setup profile from URI: %s', profile_url)
+        screen.window.navigate_to_setup(profile_url)
+
+    return _handle_install_uri, _handle_setup_uri, install_windows
+
+
 def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool = False) -> None:
     """Application entry point.
 
@@ -268,21 +339,12 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     _screen = Screen(porringer, _store)
     _tray = TrayScreen(app, client, _screen.window, store=_store)
 
-    # Keep install preview windows alive until the app exits
-    _install_windows: list[InstallPreviewWindow] = []
-
-    def _handle_install_uri(manifest_url: str) -> None:
-        logger.info('Opening install preview for: %s', manifest_url)
-        window = InstallPreviewWindow(
-            porringer,
-            manifest_url,
-            config=_store.config,
-        )
-        _install_windows.append(window)
-        window.show()
-        window.raise_()
-        window.activateWindow()
-        window.start()
+    _handle_install_uri, _handle_setup_uri, _install_windows = _create_uri_handlers(
+        porringer,
+        _store,
+        _screen,
+        logger,
+    )
 
     _debug_handler = DebugHandler(
         DebugServices(
@@ -299,10 +361,12 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     )
     instance.set_debug_handler(_debug_handler.handle)
 
-    instance.uri_received.connect(lambda received_uri: _process_uri(received_uri, _handle_install_uri))
+    instance.uri_received.connect(
+        lambda received_uri: _process_uri(received_uri, _handle_install_uri, _handle_setup_uri)
+    )
 
     if uri:
-        _process_uri(uri, _handle_install_uri)
+        _process_uri(uri, _handle_install_uri, _handle_setup_uri)
 
     # --- Graceful shutdown ---
     # aboutToQuit fires while the Qt event loop is still running —

@@ -301,6 +301,16 @@ class SetupPreviewWidget(QWidget):
         """
         self._model.project_directory = path
 
+    def start_install(self) -> None:
+        """Programmatically trigger installation.
+
+        Only effective when the widget is in the :attr:`PreviewPhase.READY`
+        phase.  Used by batch-install flows where the host view drives
+        execution of multiple widgets sequentially.
+        """
+        if self._model.phase == PreviewPhase.READY:
+            self._on_install()
+
     def load(
         self,
         path_or_url: str,

@@ -1571,13 +1571,24 @@ class MainWindow(QMainWindow):
         """Switch to the Projects tab and select the given directory."""
         if self._tabs is not None and self._projects_view is not None:
             self._tabs.setCurrentIndex(0)
-            self._projects_view._sidebar.select(Path(path_str))
+            self._projects_view._sidebar.select(path_str)
 
     def _navigate_to_tool(self, plugin_name: str, package_name: str) -> None:
         """Switch to the Tools tab and highlight the given package."""
         if self._tabs is not None and self._tools_view is not None:
             self._tabs.setCurrentIndex(1)
             self._tools_view.navigate_to_package(plugin_name, package_name)
+
+    def navigate_to_setup(self, profile_url: str) -> None:
+        """Switch to the Projects tab and add a setup profile.
+
+        Called from deep link handling to add a remote profile URL
+        and select it in the sidebar.
+        """
+        self.show()
+        if self._tabs is not None and self._projects_view is not None:
+            self._tabs.setCurrentIndex(0)
+            self._projects_view.add_profile(profile_url)
 
 
 class Screen:

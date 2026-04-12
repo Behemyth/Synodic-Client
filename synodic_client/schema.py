@@ -112,6 +112,11 @@ class UserConfig(BaseModel):
     # tool updates have been recorded.
     last_tool_updates: dict[str, str] | None = None
 
+    # List of setup profile URLs.
+    # Each URL points to a remote JSON file describing a collection of
+    # manifest URLs for machine provisioning.  None means no profiles.
+    setup_profiles: list[str] | None = None
+
     @model_validator(mode='wrap')
     @classmethod
     def _recover_invalid_fields(cls, data: Any, handler: Any) -> UserConfig:
@@ -285,3 +290,4 @@ class ResolvedConfig:
     debug_logging: bool
     last_client_update: str | None
     last_tool_updates: dict[str, str] | None
+    setup_profiles: list[str] = field(default_factory=list)
