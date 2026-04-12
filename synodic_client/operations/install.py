@@ -10,6 +10,7 @@ import logging
 import os
 import tempfile
 from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -157,6 +158,49 @@ async def resolve_profile(url: str) -> tuple[SetupProfile, str | None]:
 
 
 # ---------------------------------------------------------------------------
+# Context-manager wrappers for automatic temp-dir cleanup
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def open_manifest(url: str) -> AsyncIterator[Path]:
+    """Resolve *url* to a local manifest path, cleaning up on exit.
+
+    Usage::
+
+        async with open_manifest(url) as manifest_path:
+            ...
+    """
+    manifest_path, temp_dir = await resolve_manifest_path(url)
+    try:
+        yield manifest_path
+    finally:
+        if temp_dir is not None:
+            safe_rmtree(temp_dir)
+
+
+@asynccontextmanager
+async def open_profile(url: str) -> AsyncIterator[SetupProfile]:
+    """Download, parse, and validate a remote setup profile.
+
+    The temporary download directory is cleaned up automatically
+    when the context manager exits.
+
+    Usage::
+
+        async with open_profile(url) as profile:
+            for manifest_url in profile.manifests:
+                ...
+    """
+    profile, temp_dir = await resolve_profile(url)
+    try:
+        yield profile
+    finally:
+        if temp_dir is not None:
+            safe_rmtree(temp_dir)
+
+
+# ---------------------------------------------------------------------------
 # Streaming preview
 # ---------------------------------------------------------------------------
 
@@ -211,11 +255,12 @@ async def preview_manifest_stream(
 
         async for event in porringer.sync.execute_stream(params, plugins=discovered):
             if isinstance(event, ManifestParsedEvent):
-                if event.manifest.manifest_path is not None:
-                    manifest_path_str = str(event.manifest.manifest_path)
+                effective_path = (
+                    str(event.manifest.manifest_path) if event.manifest.manifest_path is not None else manifest_path_str
+                )
                 yield PreviewManifestParsed(
                     manifest=event.manifest,
-                    manifest_path=manifest_path_str,
+                    manifest_path=effective_path,
                     temp_dir=temp_dir_str,
                 )
 
@@ -228,11 +273,12 @@ async def preview_manifest_stream(
                 )
 
             elif isinstance(event, ManifestLoadedEvent):
-                if event.manifest.manifest_path is not None:
-                    manifest_path_str = str(event.manifest.manifest_path)
+                effective_path = (
+                    str(event.manifest.manifest_path) if event.manifest.manifest_path is not None else manifest_path_str
+                )
                 yield PreviewReady(
                     manifest=event.manifest,
-                    manifest_path=manifest_path_str,
+                    manifest_path=effective_path,
                     temp_dir=temp_dir_str,
                 )
 

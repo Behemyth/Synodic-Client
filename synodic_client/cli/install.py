@@ -84,27 +84,14 @@ async def _process_install_stream(
     json_output: bool,
 ) -> tuple[list[SetupActionResult], int]:
     """Run the install stream and collect results."""
-    from porringer.schema import ActionCompletedEvent, ActionStartedEvent, ManifestLoadedEvent
-
+    from synodic_client.cli.progress import make_install_progress
     from synodic_client.operations.install import collect_install
 
     action_count = 0
 
-    def _on_progress(stage: str, event: object) -> None:
+    def _on_manifest_loaded(count: int) -> None:
         nonlocal action_count
-        if stage == 'manifest_loaded' and isinstance(event, ManifestLoadedEvent):
-            action_count = len(event.manifest.actions)
-            if not json_output:
-                typer.echo(f'Manifest loaded: {action_count} action(s)')
-        elif stage == 'action_started' and isinstance(event, ActionStartedEvent):
-            if not json_output:
-                typer.echo(f'  Starting: {event.action.description}')
-        elif stage == 'action_completed' and isinstance(event, ActionCompletedEvent):
-            if not json_output:
-                status = 'OK' if event.result.success else 'FAILED'
-                if event.result.skipped:
-                    status = 'SKIPPED'
-                typer.echo(f'  {status}: {event.action.description}')
+        action_count = count
 
     results = await collect_install(
         porringer,
@@ -112,7 +99,10 @@ async def _process_install_stream(
         project_directory=project_directory,
         strategy=strategy,
         prerelease_packages=prerelease_packages,
-        on_progress=_on_progress,
+        on_progress=make_install_progress(
+            json_output=json_output,
+            on_manifest_loaded=_on_manifest_loaded,
+        ),
     )
 
     return list(results.results), action_count
@@ -126,26 +116,17 @@ async def _process_post_sync_stream(
     json_output: bool,
 ) -> list[SetupActionResult]:
     """Run the post-sync stream and collect results."""
-    from porringer.schema import ActionCompletedEvent, ActionStartedEvent
-
+    from synodic_client.cli.progress import make_post_sync_progress
     from synodic_client.operations.install import collect_post_sync
 
     if not json_output:
         typer.echo('Running post-sync commands...')
 
-    def _on_progress(stage: str, event: object) -> None:
-        if stage == 'action_started' and isinstance(event, ActionStartedEvent):
-            if not json_output:
-                typer.echo(f'  Running: {event.action.description}')
-        elif stage == 'action_completed' and isinstance(event, ActionCompletedEvent) and not json_output:
-            status = 'OK' if event.result.success else 'FAILED'
-            typer.echo(f'  {status}: {event.action.description}')
-
     results = await collect_post_sync(
         porringer,
         manifest_path,
         project_directory=project_directory,
-        on_progress=_on_progress,
+        on_progress=make_post_sync_progress(json_output=json_output),
     )
 
     return list(results.results)
@@ -161,12 +142,10 @@ async def _run(
     json_output: bool,
 ) -> dict[str, object]:
     """Execute the install pipeline and return a summary dict."""
-    from synodic_client.operations.install import resolve_manifest_path
+    from synodic_client.operations.install import open_manifest
     from synodic_client.operations.schema import format_install_summary
 
-    manifest_path, temp_dir = await resolve_manifest_path(manifest_url)
-
-    try:
+    async with open_manifest(manifest_url) as manifest_path:
         install_results, action_count = await _process_install_stream(
             porringer,
             manifest_path,
@@ -203,8 +182,3 @@ async def _run(
             'post_sync_failed': sum(1 for r in post_sync_results if not r.success),
             'summary': summary,
         }
-    finally:
-        if temp_dir:
-            from synodic_client.application.uri import safe_rmtree
-
-            safe_rmtree(temp_dir)

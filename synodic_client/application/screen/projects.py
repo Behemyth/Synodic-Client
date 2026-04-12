@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -79,6 +80,11 @@ class ProjectsView(QWidget):
         self._widgets: dict[str, SetupPreviewWidget] = {}
         self._manifest_to_profile: dict[str, str] = {}
         self._batch_task: asyncio.Task[None] | None = None
+
+        # Profile resolution cache: {profile_url: (SetupProfile, timestamp)}
+        self._profile_cache: dict[str, tuple[object, float]] = {}
+        self._profile_cache_ttl: float = 300.0  # 5 minutes
+
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -218,19 +224,35 @@ class ProjectsView(QWidget):
     ) -> dict[str, str]:
         """Download setup profiles and append their manifests to *directories*.
 
+        Uses a TTL cache to avoid re-downloading profiles on every refresh.
+
         Returns:
             A mapping from manifest URL to owning profile URL.
         """
+        from synodic_client.operations.install import open_profile
+        from synodic_client.operations.schema import SetupProfile
+
+        now = time.monotonic()
         manifest_to_profile: dict[str, str] = {}
+
+        # Evict cache entries for profiles no longer in config
+        configured = set(self._store.config.setup_profiles)
+        for url in list(self._profile_cache):
+            if url not in configured:
+                del self._profile_cache[url]
+
         for profile_url in self._store.config.setup_profiles:
             try:
-                from synodic_client.operations.install import resolve_profile
+                cached = self._profile_cache.get(profile_url)
+                if cached is not None and (now - cached[1]) < self._profile_cache_ttl:
+                    profile = cached[0]
+                else:
+                    async with open_profile(profile_url) as profile:
+                        self._profile_cache[profile_url] = (profile, now)
 
-                profile, temp_dir = await resolve_profile(profile_url)
-                if temp_dir is not None:
-                    from synodic_client.application.uri import safe_rmtree
+                if not isinstance(profile, SetupProfile):
+                    continue
 
-                    safe_rmtree(temp_dir)
                 for manifest_url in profile.manifests:
                     manifest_to_profile[manifest_url] = profile_url
                     if manifest_url not in current_keys:
@@ -307,16 +329,17 @@ class ProjectsView(QWidget):
 
     def _on_add(self) -> None:
         """Show a choice dialog to add a local project or a remote profile URL."""
-        choice = QMessageBox.question(
-            self,
-            'Add',
-            'Add a local project directory or a remote profile URL?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if choice == QMessageBox.StandardButton.Yes:
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle('Add')
+        dlg.setText('What would you like to add?')
+        local_btn = dlg.addButton('Local Project', QMessageBox.ButtonRole.AcceptRole)
+        profile_btn = dlg.addButton('Profile URL', QMessageBox.ButtonRole.ActionRole)
+        dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        if clicked == local_btn:
             self._add_local_project()
-        else:
+        elif clicked == profile_btn:
             self._add_profile_url()
 
     def _add_local_project(self) -> None:
@@ -381,6 +404,8 @@ class ProjectsView(QWidget):
             existing.append(url)
             self._store.update(setup_profiles=existing)
 
+        # Force re-fetch of the new profile on the next refresh
+        self._profile_cache.pop(url, None)
         self._pending_select = url
         self.refresh()
 
@@ -425,6 +450,7 @@ class ProjectsView(QWidget):
         if owning_profile is not None:
             updated = [p for p in self._store.config.setup_profiles if p != owning_profile]
             self._store.update(setup_profiles=updated)
+            self._profile_cache.pop(owning_profile, None)
             logger.info('Removed setup profile: %s', owning_profile)
         else:
             logger.warning('Could not find owning profile for manifest: %s', manifest_url)
@@ -465,9 +491,11 @@ class ProjectsView(QWidget):
                     continue
 
                 done_event = asyncio.Event()
-                widget.install_finished.connect(lambda _r, e=done_event: e.set())
+                slot = lambda _r, e=done_event: e.set()
+                widget.install_finished.connect(slot)
                 widget.start_install()
                 await done_event.wait()
+                widget.install_finished.disconnect(slot)
         except Exception:
             logger.exception('Batch install failed')
         finally:

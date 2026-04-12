@@ -51,6 +51,7 @@ def make_resolved_config(**overrides: Any) -> ResolvedConfig:
         'debug_logging': False,
         'last_client_update': None,
         'last_tool_updates': None,
+        'setup_profiles': [],
     }
     defaults.update(overrides)
     return ResolvedConfig(**defaults)
