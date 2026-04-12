@@ -16,7 +16,6 @@ dependencies = [
     "packaging>=26.0",
     "porringer>=0.2.1.dev90",
     "qasync>=0.28.0",
-    "velopack>=0.0.1535.dev45597",
     "typer>=0.24.1",
 ]
 
@@ -69,7 +68,7 @@ quote-style = "single"
 skip_empty = true
 
 [tool.pyrefly]
-replace-imports-with-any = ["velopack", "winreg"]
+replace-imports-with-any = ["winreg"]
 
 [tool.pdm.version]
 source = "scm"

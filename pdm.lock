@@ -5,7 +5,7 @@
 groups = ["default", "build", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:8b7f4ca52bafea12c53552b6882a5133730017a81ae39e8849a6d640d72322f7"
+content_hash = "sha256:ffb29ded0ee13fb2686259334bef48c5ff296ac1c7b23bada3d24dd7125826fe"
 
 [[metadata.targets]]
 requires_python = ">=3.14,<3.15"
@@ -917,31 +917,6 @@ dependencies = [
 files = [
     {file = "userpath-1.9.2-py3-none-any.whl", hash = "sha256:2cbf01a23d655a1ff8fc166dfb78da1b641d1ceabf0fe5f970767d380b14e89d"},
     {file = "userpath-1.9.2.tar.gz", hash = "sha256:6c52288dab069257cc831846d15d48133522455d4677ee69a9781f11dbefd815"},
-]
-
-[[package]]
-name = "velopack"
-version = "0.0.1535.dev45597"
-requires_python = ">=3.8"
-summary = "Installer and automatic update framework for cross-platform desktop applications"
-groups = ["default"]
-files = [
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:5d39e8eeb4049fccf589e5ef33961dc113bd26cc56f4c6a7f4c5917f693cf9f0"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:ebbfbc4c8f80e4c9a4f6956904e8ca5be040f1c6f13629f0c451de623a4b0bd4"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a9464b5d5f1b60e43dd59b4a1605aa7db6d79067e18702d1e665c929a6f179c5"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:fb7c5413e08cf68c4ee4b00741fdfc7c469e93a964fb50845497fc361e7826e5"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c3218a9a4ece39e21503d3754b79520b0d1ad650e554ffdbd3506579bf51c36d"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:c62e0aabcb100cbb68a9bec0aec281c1a4319a5c8937a5fe4bc8657d91c451ef"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:6c59342777a57ac6eb118cf92ae8466c36b75acaa3e9af21dffd8f0488411f80"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d70121ff420c579a2be2bf8030e4480310eb16441b36ba7e337bec17a6c73d20"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:c59d66757accd8111078a0e2882c9a439893a06bc0a05ea7ec4e770f0e55c59a"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:d309ee109a37ef9f871e4cb6b72e7841c012a18b2b1a82eaac8639ffce3c58ec"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-musllinux_1_2_i686.whl", hash = "sha256:2f59711e757421448540aaf0a05b6d4c674711f9c54d4b1f65e0e8f539a9a66a"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a4940789d7b7649d4262b0d4987783d53d7d78e9718858a057ceec4181a33602"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-win32.whl", hash = "sha256:a5a2aab05ddbf2e721c89cd997a20f851a2ec1e06647c2c98139770436fc1f62"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-win_amd64.whl", hash = "sha256:931d4a3991172b19d6d3aaeb27e9a19b03f17c8b508613b01d8fce4be0f601e3"},
-    {file = "velopack-0.0.1535.dev45597-cp37-abi3-win_arm64.whl", hash = "sha256:30afbf5211ca2f97d302600faded972c934b0e6a267af022f97b4297b30bc2e9"},
-    {file = "velopack-0.0.1535.dev45597.tar.gz", hash = "sha256:c20a91eea1fc143db390bfcba63d995a9ffffc88bcdcdf39b843358a128df978"},
 ]
 
 [[package]]

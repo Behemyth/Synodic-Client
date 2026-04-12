@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Synodic Client</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --radius: 12px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 520px;
+            width: 100%;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1.5rem;
+            border-radius: 16px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Phase: launching */
+        #phase-launch {
+            animation: fadeIn 0.3s ease;
+        }
+
+        #phase-launch .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 1.5rem auto;
+        }
+
+        /* Phase: fallback */
+        #phase-fallback {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .card p {
+            color: var(--muted);
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.625rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.15s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            margin-left: 0.5rem;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--muted);
+        }
+
+        .actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .uri-preview {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.8rem;
+            color: var(--muted);
+            word-break: break-all;
+            text-align: left;
+        }
+
+        .step {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--bg);
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .step p {
+            margin: 0;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <img src="../icon.png" alt="Synodic" class="logo" id="logo" />
+        <h1>Synodic Client</h1>
+
+        <!-- Phase 1: attempting protocol launch -->
+        <div id="phase-launch">
+            <p class="subtitle" id="launch-message">Opening Synodic Client&hellip;</p>
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Phase 2: fallback if app not detected -->
+        <div id="phase-fallback">
+            <p class="subtitle">The app didn't open. You may need to install it first.</p>
+
+            <div class="card">
+                <h2>Get Synodic Client</h2>
+                <p>Install via the Microsoft Store or download the latest MSIX package.</p>
+                <div class="actions">
+                    <a id="download-link" class="btn btn-primary"
+                        href="https://github.com/synodic/synodic-client/releases/latest" target="_blank" rel="noopener">
+                        Download
+                    </a>
+                    <a id="retry-link" class="btn btn-secondary" href="#">
+                        Try again
+                    </a>
+                </div>
+            </div>
+
+            <div class="card" id="manual-card">
+                <h2>Already installed?</h2>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <p>Open Synodic Client manually</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <p>Paste this URI in the address bar or run it from a terminal:</p>
+                </div>
+                <div class="uri-preview" id="uri-display"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            var FALLBACK_DELAY = 2500;
+            var PROTOCOL = 'synodic://';
+
+            /**
+             * Parse the current page URL for the action and parameters.
+             *
+             * Supported URL formats:
+             *   ?uri=synodic://install?manifest=https://...
+             *   ?action=install&manifest=https://...
+             *   ?action=setup&profile=https://...
+             */
+            function buildUri() {
+                var params = new URLSearchParams(window.location.search);
+
+                // Direct URI pass-through
+                var raw = params.get('uri');
+                if (raw && raw.toLowerCase().startsWith(PROTOCOL)) {
+                    return raw;
+                }
+
+                // Build from components
+                var action = params.get('action');
+                if (!action) return null;
+
+                var uri = PROTOCOL + encodeURIComponent(action);
+                var known = ['manifest', 'profile'];
+                for (var i = 0; i < known.length; i++) {
+                    var val = params.get(known[i]);
+                    if (val) {
+                        uri += '?' + known[i] + '=' + encodeURIComponent(val);
+                    }
+                }
+                return uri;
+            }
+
+            function showFallback() {
+                document.getElementById('phase-launch').style.display = 'none';
+                document.getElementById('phase-fallback').style.display = 'block';
+            }
+
+            var uri = buildUri();
+
+            if (!uri) {
+                // No action specified — show a generic landing
+                document.getElementById('launch-message').textContent =
+                    'Welcome to Synodic Client';
+                document.querySelector('.spinner').style.display = 'none';
+                document.getElementById('phase-launch').style.display = 'none';
+                document.getElementById('phase-fallback').style.display = 'block';
+                document.getElementById('manual-card').style.display = 'none';
+                return;
+            }
+
+            // Show the URI for manual copy
+            document.getElementById('uri-display').textContent = uri;
+
+            // Retry button re-attempts the protocol launch
+            document.getElementById('retry-link').addEventListener('click', function (e) {
+                e.preventDefault();
+                window.location.href = uri;
+            });
+
+            // Attempt protocol activation
+            window.location.href = uri;
+
+            // After a delay, show the fallback UI
+            setTimeout(showFallback, FALLBACK_DELAY);
+        })();
+    </script>
+</body>
+
+</html>

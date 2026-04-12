@@ -1,7 +1,7 @@
-"""Print project version in PEP 440 and SemVer formats.
+"""Print project version.
 
-Outputs ``version=<pep440>`` and ``installer-version=<semver>`` lines,
-one per line.  In CI these can be appended directly to ``$GITHUB_OUTPUT``.
+Outputs ``version=<pep440>`` line.  In CI this can be appended
+directly to ``$GITHUB_OUTPUT``.
 
 Usage examples:
     pdm run version
@@ -9,14 +9,11 @@ Usage examples:
 """
 
 from synodic_client import __version__
-from synodic_client.updater import pep440_to_semver
 
 
 def main() -> None:
     """Entry point for the version script."""
-    semver = pep440_to_semver(__version__)
     print(f'version={__version__}')
-    print(f'installer-version={semver}')
 
 
 if __name__ == '__main__':

@@ -26,21 +26,17 @@ class Client:
 
     @property
     def version(self) -> Version:
-        """Return the best-known application version.
+        """Return the application version.
 
-        When a Velopack-installed updater is available the authoritative
-        version comes from the native binary manifest.  Otherwise, the
-        Python package metadata version (``importlib.metadata``) is used.
+        When an updater is available and the app is installed as MSIX,
+        the updater's version is authoritative.  Otherwise the Python
+        package metadata version is used.
 
         Returns:
             The resolved version.
         """
         if self._updater is not None:
-            try:
-                if self._updater.is_installed:
-                    return self._updater.current_version
-            except Exception:
-                logger.debug('Failed to query Velopack version, falling back', exc_info=True)
+            return self._updater.current_version
         try:
             return Version(importlib.metadata.version(self.distribution))
         except importlib.metadata.PackageNotFoundError:
@@ -121,7 +117,7 @@ class Client:
 
         Args:
             restart: Whether to restart after applying.
-            silent: When ``True``, suppress the Velopack splash window.
+            silent: When ``True``, suppress the restart splash.
         """
         if self._updater is None:
             logger.warning('Updater not initialized')

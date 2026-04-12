@@ -1,10 +1,9 @@
 r"""URI protocol handler registration for the ``synodic://`` scheme.
 
-On Windows this writes registry keys under ``HKCU\Software\Classes\synodic``
-so that clicking a ``synodic://`` link in a browser or file manager launches the
-Synodic Client with the URI as an argument.
-
-Other platforms are stubbed with no-op implementations.
+MSIX-packaged builds declare ``windows.protocol`` in ``AppxManifest.xml``,
+so protocol registration and removal are automatic.  The functions below
+are retained only for non-packaged (dev / loose-file) builds where
+manual registry manipulation is still required.
 """
 
 import logging
@@ -14,6 +13,21 @@ logger = logging.getLogger(__name__)
 
 PROTOCOL_NAME = 'synodic'
 _PROTOCOL_DESCRIPTION = 'Synodic Client Protocol'
+
+
+def _is_msix() -> bool:
+    """Return ``True`` when running inside an MSIX package."""
+    if sys.platform != 'win32':
+        return False
+    try:
+        import ctypes
+
+        length = ctypes.c_uint32(0)
+        result = ctypes.windll.kernel32.GetCurrentPackageFullName(ctypes.byref(length), None)
+        # APPMODEL_ERROR_NO_PACKAGE (15700) means not packaged
+        return result != 15700
+    except Exception:
+        return False
 
 
 if sys.platform == 'win32':
@@ -30,9 +44,15 @@ if sys.platform == 'win32':
     def register_protocol(exe_path: str) -> None:
         """Register the ``synodic://`` URI protocol handler.
 
+        No-op when running inside an MSIX package (the manifest handles it).
+
         Args:
             exe_path: Absolute path to the application executable.
         """
+        if _is_msix():
+            logger.debug('MSIX detected — skipping manual protocol registration')
+            return
+
         key_path = f'Software\\Classes\\{PROTOCOL_NAME}'
 
         try:
@@ -49,7 +69,13 @@ if sys.platform == 'win32':
             logger.exception('Failed to register synodic:// protocol handler')
 
     def remove_protocol() -> None:
-        """Remove the ``synodic://`` URI protocol handler registration."""
+        """Remove the ``synodic://`` URI protocol handler registration.
+
+        No-op when running inside an MSIX package.
+        """
+        if _is_msix():
+            return
+
         key_path = f'Software\\Classes\\{PROTOCOL_NAME}'
 
         result = _reg_delete_tree(winreg.HKEY_CURRENT_USER, key_path)
@@ -68,11 +94,9 @@ else:
         Args:
             exe_path: Absolute path to the application executable.
         """
-        logger.warning('Protocol registration is only supported on Windows (current: %s)', sys.platform)
 
     def remove_protocol() -> None:
         """Remove the ``synodic://`` URI protocol handler registration (no-op on non-Windows)."""
-        logger.warning('Protocol removal is only supported on Windows (current: %s)', sys.platform)
 
 
 def extract_uri_from_args(args: list[str] | None = None) -> str | None:

@@ -1,14 +1,13 @@
 """Shared startup preamble for frozen and CLI entry points.
 
 Encapsulates the one-time initialisation that both
-:mod:`synodic_client.application.bootstrap` (PyInstaller) and
-:mod:`synodic_client.application.qt` (CLI / dev-script) need to
-perform before the GUI event loop starts:
+:mod:`synodic_client.application.bootstrap` (PyInstaller / MSIX) and
+:mod:`synodic_client.application.qt` (CLI / dev-script) perform
+before the GUI event loop starts:
 
 1. Seed user config from the build config (one-time propagation).
-2. Register the ``synodic://`` URI protocol handler.
-3. Synchronise the Windows auto-startup registry entry with the
-   persisted ``auto_start`` preference.
+2. Register the ``synodic://`` URI protocol handler (no-op under MSIX).
+3. Synchronise the Windows auto-startup state (no-op under MSIX).
 
 Heavy dependencies (PySide6, porringer) are **not** imported here so
 that the bootstrap path can call this before loading them.
@@ -39,6 +38,9 @@ def run_startup_preamble(exe_path: str | None = None) -> None:
     this unconditionally.  An internal guard ensures the work only
     executes once per process.
 
+    Under MSIX packaging the protocol and startup registrations are
+    declarative and the corresponding calls become no-ops.
+
     Args:
         exe_path: Absolute path to the application executable.  Defaults
             to ``sys.executable`` when not supplied.
@@ -50,15 +52,12 @@ def run_startup_preamble(exe_path: str | None = None) -> None:
     if exe_path is None:
         exe_path = sys.executable
 
-    # Seed user config from the build config (one-time propagation).
     seed_user_config_from_build()
 
-    frozen = getattr(sys, 'frozen', False)
-
-    if frozen:
-        register_protocol(exe_path)
+    # Both calls are MSIX-aware and become no-ops when packaged.
+    register_protocol(exe_path)
 
     config = resolve_config()
     sync_startup(exe_path, auto_start=config.auto_start)
 
-    logger.info('Startup preamble complete (auto_start=%s, frozen=%s)', config.auto_start, frozen)
+    logger.info('Startup preamble complete (auto_start=%s)', config.auto_start)

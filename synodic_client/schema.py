@@ -9,7 +9,6 @@ that every layer can import them without circular dependencies.
 from __future__ import annotations
 
 import logging
-import sys
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
 from typing import Any
@@ -31,7 +30,7 @@ class BuildConfig(BaseModel):
     Only contains the two fields the build system needs to seed.
     """
 
-    # URL or local file path for Velopack releases.
+    # URL pointing to the .appinstaller feed (or parent directory).
     update_source: str | None = None
 
     # Update channel: "stable" or "dev".
@@ -52,7 +51,7 @@ class UserConfig(BaseModel):
     the on-disk file is a complete snapshot of the user's preferences.
     """
 
-    # URL or local file path for Velopack releases.
+    # URL pointing to the .appinstaller feed (or parent directory).
     # None means use the default GitHub release source.
     update_source: str | None = None
 
@@ -181,15 +180,6 @@ class UpdateInfo:
     latest_version: Version | None = None
     error: str | None = None
 
-    # Internal: Velopack update info for download/apply
-    _velopack_info: Any = field(default=None, repr=False)
-
-    # Internal: True when the update was discovered via the manifest
-    # fallback rather than the Velopack SDK.  The download path uses
-    # this to route to a direct HTTP download instead of the SDK's
-    # GithubSource (which cannot find prerelease assets).
-    _used_manifest_fallback: bool = field(default=False, repr=False)
-
 
 # Default interval for automatic update checks (minutes)
 DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 5
@@ -197,35 +187,18 @@ DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 5
 # Default interval for tool update checks (minutes)
 DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES = 5
 
-# GitHub repository base URL.  Transformed into a release-asset URL
-# by :func:`~synodic_client.updater.github_release_asset_url` at resolution
-# time so that Velopack's ``HttpSource`` can fetch
-# ``releases.{channel}.json`` from the correct GitHub Releases download path.
+# Default .appinstaller feed base URL.
 GITHUB_REPO_URL = 'https://github.com/synodic/synodic-client'
-
-_PLATFORM_SUFFIXES: dict[str, str] = {
-    'win32': 'win',
-    'linux': 'linux',
-    'darwin': 'osx',
-}
-
-
-def platform_suffix() -> str:
-    """Return the Velopack channel suffix for the current platform."""
-    try:
-        return _PLATFORM_SUFFIXES[sys.platform]
-    except KeyError:
-        raise RuntimeError(f'Unsupported platform for updates: {sys.platform}') from None
 
 
 @dataclass
 class UpdateConfig:
     """Configuration for the updater."""
 
-    # GitHub repository URL for Velopack to discover releases
+    # Base URL for the .appinstaller feed.
     repo_url: str = GITHUB_REPO_URL
 
-    # Channel determines whether to use dev or stable releases
+    # Channel determines whether to use dev or stable releases.
     channel: UpdateChannel = UpdateChannel.STABLE
 
     # Interval in minutes between automatic update checks (0 = disabled)
@@ -254,13 +227,8 @@ class UpdateConfig:
 
     @property
     def channel_name(self) -> str:
-        """Get the channel name for Velopack.
-
-        Combines the update track (dev/stable) with a platform suffix
-        so each OS has its own release manifest and nupkg files.
-        """
-        base = 'dev' if self.channel == UpdateChannel.DEVELOPMENT else 'stable'
-        return f'{base}-{platform_suffix()}'
+        """Return the channel name (``dev`` or ``stable``)."""
+        return 'dev' if self.channel == UpdateChannel.DEVELOPMENT else 'stable'
 
 
 # ---------------------------------------------------------------------------

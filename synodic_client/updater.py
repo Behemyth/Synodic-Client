@@ -1,132 +1,49 @@
-"""Self-update functionality using Velopack.
+"""Self-update functionality via .appinstaller (MSIX).
 
-This module handles self-updates for synodic-client using Velopack,
-which manages the full update lifecycle including download, verification,
-and installation.
+For MSIX-packaged builds the OS manages update discovery and
+installation through the ``.appinstaller`` file declared at install
+time.  This module provides a thin wrapper that checks the
+``.appinstaller`` feed URL for a newer version and exposes the same
+check / download / apply lifecycle that the rest of the codebase expects.
 
-For non-installed (development) environments, updates are not supported.
+For non-packaged (development) builds, updates are not supported.
 """
 
-import contextlib
-import hashlib
-import json
 import logging
+import re
 import sys
 import urllib.request
 from collections.abc import Callable
-from pathlib import Path
-from typing import Any
 
-import velopack
 from packaging.version import Version
 
-from synodic_client.protocol import remove_protocol
+from synodic_client.protocol import _is_msix
 from synodic_client.schema import (
-    UpdateChannel,
     UpdateConfig,
     UpdateInfo,
     UpdateState,
 )
-from synodic_client.startup import remove_startup
 
 logger = logging.getLogger(__name__)
 
-# Fixed tag used for rolling development releases on GitHub.
-_DEV_RELEASE_TAG = 'dev'
 
-
-def pep440_to_semver(version_string: str) -> str:
-    """Convert a PEP 440 version string to a SemVer string for Velopack.
-
-    Velopack requires strict SemVer (``MAJOR.MINOR.PATCH[-pre.N]``) while
-    Python tooling produces PEP 440 (e.g. ``0.1.dev47+g799543c``).  This
-    function bridges the two:
-
-    * Normalises the base to three components (``0.1`` → ``0.1.0``).
-    * Converts ``.devN`` to ``-dev.N``.
-    * Strips local segments (``+g…``).
-    * Stable versions pass through unchanged (``1.0.0`` → ``1.0.0``).
-
-    Examples::
-
-        >>> pep440_to_semver('0.1.dev47+g799543c')
-        '0.1.0-dev.47'
-        >>> pep440_to_semver('0.1.1.dev3')
-        '0.1.1-dev.3'
-        >>> pep440_to_semver('1.0.0')
-        '1.0.0'
-
-    Args:
-        version_string: A PEP 440 version string.
-
-    Returns:
-        A SemVer-compatible version string.
-    """
-    v = Version(version_string)
-    base = f'{v.major}.{v.minor}.{v.micro}'
-    if v.dev is not None:
-        return f'{base}-dev.{v.dev}'
-    return base
-
-
-def github_release_asset_url(repo_url: str, channel: UpdateChannel) -> str:
-    """Convert a GitHub repository URL into a release-asset download URL.
-
-    Velopack's runtime SDK uses a plain ``HttpSource`` that requests
-    ``{base_url}/releases.{channel}.json``.  GitHub serves release assets
-    at ``{repo}/releases/download/{tag}/`` (for a specific tag) or
-    ``{repo}/releases/latest/download/`` (auto-resolves to the newest
-    non-prerelease release).
-
-    * **Development** channel → ``/releases/download/dev/``
-    * **Stable** channel → ``/releases/latest/download/``
-
-    Non-GitHub URLs (local paths, custom HTTP servers) are returned
-    unchanged.
-
-    Args:
-        repo_url: A GitHub repository URL or custom update source.
-        channel: The resolved update channel.
-
-    Returns:
-        A URL (or path) suitable for Velopack's ``UpdateManager``.
-    """
-    normalized = repo_url.rstrip('/')
-    # Only transform URLs that look like a GitHub repository.
-    if not normalized.startswith(('https://github.com/', 'http://github.com/')):
-        return repo_url
-
-    if channel == UpdateChannel.DEVELOPMENT:
-        return f'{normalized}/releases/download/{_DEV_RELEASE_TAG}'
-    return f'{normalized}/releases/latest/download'
-
-
-# Map sys.platform values to Velopack channel suffixes
 class Updater:
-    """Handles self-update operations using Velopack."""
+    """Handles self-update operations via .appinstaller feeds."""
 
     def __init__(self, current_version: Version, config: UpdateConfig | None = None) -> None:
         """Initialize the updater.
 
         Args:
-            current_version: The current version of the application
-            config: Update configuration, uses defaults if not provided
+            current_version: The current version of the application.
+            config: Update configuration, uses defaults if not provided.
         """
         self._current_version = current_version
         self._config = config or UpdateConfig()
         self._state = UpdateState.NO_UPDATE
         self._update_info: UpdateInfo | None = None
-        self._velopack_manager: Any = None
-        self._velopack_not_installed: bool = False
-
-        # Eagerly resolve the Velopack manager so that
-        # _current_version reflects the installed binary version
-        # rather than the (potentially stale) Python package metadata.
-        with contextlib.suppress(Exception):
-            self._get_velopack_manager()
 
         logger.info(
-            'Updater created: version=%s, channel=%s, repo=%s',
+            'Updater created: version=%s, channel=%s, source=%s',
             self._current_version,
             self._config.channel_name,
             self._config.repo_url,
@@ -134,11 +51,7 @@ class Updater:
 
     @property
     def current_version(self) -> Version:
-        """Best-known application version.
-
-        Returns the Velopack-installed version when available, otherwise
-        the version from Python package metadata passed at construction.
-        """
+        """Best-known application version."""
         return self._current_version
 
     @property
@@ -148,66 +61,32 @@ class Updater:
 
     @property
     def is_installed(self) -> bool:
-        """Check if running as a Velopack-installed application.
-
-        Delegates to ``_get_velopack_manager`` which creates the
-        ``UpdateManager``.  The SDK constructor raises ``RuntimeError``
-        with *"not properly installed"* when no Velopack manifest is
-        found; that specific error is treated as "not installed" while
-        all other failures propagate.
-        """
-        try:
-            return self._get_velopack_manager() is not None
-        except RuntimeError:
-            return False
+        """Return True when running as an MSIX-packaged application."""
+        return _is_msix()
 
     def check_for_update(self) -> UpdateInfo:
-        """Check for available updates.
+        """Check for available updates via the .appinstaller feed.
 
         Returns:
             UpdateInfo with details about available updates.
         """
+        if not self.is_installed:
+            logger.info('Not an MSIX install, skipping update check')
+            return UpdateInfo(
+                available=False,
+                current_version=self._current_version,
+                error='Not installed as MSIX package',
+            )
+
         try:
-            manager = self._get_velopack_manager()
-            if manager is None:
-                logger.info('Not a Velopack install, skipping update check')
-                return UpdateInfo(
-                    available=False,
-                    current_version=self._current_version,
-                    error='Not installed via Velopack',
-                )
+            latest = self._check_appinstaller_feed()
 
-            used_fallback = False
-            try:
-                velopack_info = manager.check_for_updates()
-            except Exception as sdk_err:
-                if '404' in str(sdk_err):
-                    logger.debug('SDK check failed with 404, trying manifest fallback: %s', sdk_err)
-                    velopack_info = self._check_manifest_fallback()
-                    used_fallback = velopack_info is not None
-                else:
-                    raise
-
-            if velopack_info is None:
-                # SDK returned no update; try the manual manifest fallback
-                # in case the SDK's GithubSource skipped prerelease entries.
-                velopack_info = self._check_manifest_fallback()
-                used_fallback = velopack_info is not None
-
-            if velopack_info is not None:
-                latest = Version(velopack_info.TargetFullRelease.Version)
-
+            if latest is not None and latest > self._current_version:
                 self._update_info = UpdateInfo(
                     available=True,
                     current_version=self._current_version,
                     latest_version=latest,
-                    _velopack_info=velopack_info,
-                    _used_manifest_fallback=used_fallback,
                 )
-                # Only advance to UPDATE_AVAILABLE if we haven't already
-                # moved past it.  A periodic re-check that discovers the
-                # same release must not regress DOWNLOADED → UPDATE_AVAILABLE,
-                # which would cause apply_update_on_exit() to reject the update.
                 if self._state not in {
                     UpdateState.DOWNLOADING,
                     UpdateState.DOWNLOADED,
@@ -235,208 +114,56 @@ class Updater:
                 error=str(e),
             )
 
-    def _check_manifest_fallback(self) -> Any:
-        """Download the release manifest directly and check for updates.
-
-        The Velopack SDK's ``GithubSource`` handler cannot discover
-        updates from prerelease GitHub Releases.  This fallback
-        downloads ``releases.{channel}.json`` via Python's stdlib and
-        constructs a ``velopack.UpdateInfo`` when a newer version
-        exists.
+    def _check_appinstaller_feed(self) -> Version | None:
+        """Fetch the .appinstaller XML and extract the latest version.
 
         Returns:
-            A ``velopack.UpdateInfo`` if an update is available,
-            ``None`` otherwise.
+            The latest version advertised in the feed, or None.
         """
-        asset_base = github_release_asset_url(self._config.repo_url, self._config.channel)
-        manifest_url = f'{asset_base}/releases.{self._config.channel_name}.json'
-        logger.debug('Manifest fallback: fetching %s', manifest_url)
+        feed_url = self._config.repo_url.rstrip('/')
+        if not feed_url.endswith('.appinstaller'):
+            feed_url = f'{feed_url}/synodic.appinstaller'
 
-        try:
-            req = urllib.request.Request(manifest_url, headers={'User-Agent': 'synodic-client'})
-            with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 — URL is derived from a known repo constant
-                data = json.loads(resp.read())
-        except Exception:
-            logger.debug('Manifest fallback failed for %s', manifest_url, exc_info=True)
+        logger.debug('Checking appinstaller feed: %s', feed_url)
+
+        req = urllib.request.Request(feed_url, headers={'User-Agent': 'synodic-client'})
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            body = resp.read().decode('utf-8')
+
+        # Parse Version attribute from the AppInstaller XML.
+        match = re.search(r'<MainBundle[^>]+Version="([^"]+)"', body)
+        if match is None:
+            match = re.search(r'Version="([^"]+)"', body)
+        if match is None:
+            logger.warning('Could not extract version from appinstaller feed')
             return None
 
-        current_semver = pep440_to_semver(str(self._current_version))
-        best: dict[str, Any] | None = None
-        best_ver: str | None = None
-
-        for asset in data.get('Assets', []):
-            if asset.get('Type') != 'Full':
-                continue
-            ver = asset.get('Version', '')
-            if not ver:
-                continue
-            # Simple semver comparison via packaging.version (accepts
-            # semver pre-release tags like ``0.1.0-dev.79``).
-            try:
-                if Version(ver) > Version(current_semver) and (best_ver is None or Version(ver) > Version(best_ver)):
-                    best = asset
-                    best_ver = ver
-            except Exception:
-                continue
-
-        if best is None:
-            logger.debug('Manifest fallback: no newer version found')
-            return None
-
-        logger.debug('Manifest fallback: found %s', best_ver)
-
-        target = velopack.VelopackAsset(
-            PackageId=best['PackageId'],
-            Version=best['Version'],
-            Type=best['Type'],
-            FileName=best['FileName'],
-            SHA1=best.get('SHA1', ''),
-            SHA256=best.get('SHA256', ''),
-            Size=best.get('Size', 0),
-            NotesMarkdown='',
-            NotesHtml='',
-        )
-
-        # Collect matching delta assets for the same version.
-        deltas = []
-        for asset in data.get('Assets', []):
-            if asset.get('Type') == 'Delta' and asset.get('Version') == best['Version']:
-                deltas.append(
-                    velopack.VelopackAsset(
-                        PackageId=asset['PackageId'],
-                        Version=asset['Version'],
-                        Type=asset['Type'],
-                        FileName=asset['FileName'],
-                        SHA1=asset.get('SHA1', ''),
-                        SHA256=asset.get('SHA256', ''),
-                        Size=asset.get('Size', 0),
-                        NotesMarkdown='',
-                        NotesHtml='',
-                    )
-                )
-
-        return velopack.UpdateInfo(
-            TargetFullRelease=target,
-            DeltasToTarget=deltas,
-            IsDowngrade=False,
-        )
-
-    def _download_direct(
-        self,
-        velopack_info: Any,
-        progress_callback: Callable[[int], None] | None = None,
-    ) -> None:
-        """Download the update package directly via HTTP.
-
-        Used when the update was discovered via ``_check_manifest_fallback``
-        instead of the Velopack SDK.  The SDK's ``GithubSource`` cannot
-        download assets from prerelease GitHub Releases, so this method
-        fetches the ``.nupkg`` from the known GitHub Release asset URL
-        and places it in the Velopack packages directory where the SDK's
-        apply step expects to find it.
-
-        Args:
-            velopack_info: A ``velopack.UpdateInfo`` whose
-                ``TargetFullRelease`` describes the package to download.
-            progress_callback: Optional callback for percentage progress
-                (0–100).
-
-        Raises:
-            RuntimeError: If the packages directory cannot be determined,
-                the download fails, or the checksum does not match.
-        """
-        asset = velopack_info.TargetFullRelease
-        asset_base = github_release_asset_url(self._config.repo_url, self._config.channel)
-        download_url = f'{asset_base}/{asset.FileName}'
-
-        # Velopack stores packages under ``{root}/packages/`` where
-        # ``{root}`` is the parent of the ``current/`` directory that
-        # contains the running executable.
-        packages_dir = Path(sys.executable).resolve().parent.parent / 'packages'
-        packages_dir.mkdir(parents=True, exist_ok=True)
-
-        target_file = packages_dir / asset.FileName
-        if target_file.exists():
-            logger.info('Package already exists, skipping download: %s', target_file)
-            return
-
-        partial_file = target_file.with_suffix('.partial')
-
-        logger.info('Direct download: %s -> %s', download_url, partial_file)
-
-        req = urllib.request.Request(download_url, headers={'User-Agent': 'synodic-client'})
-        with urllib.request.urlopen(req, timeout=300) as resp:  # noqa: S310 — URL from known repo
-            total = int(resp.headers.get('Content-Length', 0))
-            sha256_hash = hashlib.sha256()
-            downloaded = 0
-
-            with partial_file.open('wb') as f:
-                while True:
-                    chunk = resp.read(256 * 1024)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    sha256_hash.update(chunk)
-                    downloaded += len(chunk)
-                    if progress_callback is not None and total > 0:
-                        progress_callback(int(downloaded * 100 / total))
-
-        # Verify checksum — prefer SHA256, fall back to SHA1.
-        if asset.SHA256:
-            actual = sha256_hash.hexdigest()
-            if actual.lower() != asset.SHA256.lower():
-                partial_file.unlink(missing_ok=True)
-                raise RuntimeError(f'SHA256 mismatch for {asset.FileName}: expected {asset.SHA256}, got {actual}')
-        elif asset.SHA1:
-            actual_sha1 = hashlib.sha1(partial_file.read_bytes()).hexdigest()  # noqa: S324 — verifying known digest
-            if actual_sha1.lower() != asset.SHA1.lower():
-                partial_file.unlink(missing_ok=True)
-                raise RuntimeError(f'SHA1 mismatch for {asset.FileName}: expected {asset.SHA1}, got {actual_sha1}')
-
-        partial_file.replace(target_file)
-        logger.info('Direct download complete: %s', target_file)
+        return Version(match.group(1))
 
     def download_update(self, progress_callback: Callable[[int], None] | None = None) -> bool:
-        """Download the update.
+        """Signal that the update is ready.
 
-        Args:
-            progress_callback: Optional callback for progress updates (0-100)
+        Under MSIX the OS handles the actual download.  This method
+        transitions the state machine so the controller can proceed
+        to the apply step.
 
         Returns:
-            True if download succeeded, False otherwise
+            True when an update is staged.
         """
         if not self.is_installed:
-            raise NotImplementedError('Updates are only supported for Velopack installs')
+            raise NotImplementedError('Updates are only supported for MSIX installs')
 
         if self._state != UpdateState.UPDATE_AVAILABLE or not self._update_info:
             logger.error('No update available to download')
             return False
 
-        if self._update_info._velopack_info is None:
-            logger.error('No Velopack update info available')
-            return False
+        self._state = UpdateState.DOWNLOADED
+        logger.info('Update marked as ready (OS handles download)')
 
-        self._state = UpdateState.DOWNLOADING
-        logger.info('Starting update download for %s', self._update_info._velopack_info)
+        if progress_callback is not None:
+            progress_callback(100)
 
-        try:
-            if self._update_info._used_manifest_fallback:
-                self._download_direct(self._update_info._velopack_info, progress_callback)
-            else:
-                manager = self._get_velopack_manager()
-                if manager is None:
-                    raise RuntimeError('Velopack manager not available')
-                manager.download_updates(self._update_info._velopack_info, progress_callback)
-
-            self._state = UpdateState.DOWNLOADED
-            logger.info('Update downloaded successfully')
-            return True
-
-        except Exception as e:
-            logger.exception('Failed to download update')
-            self._state = UpdateState.FAILED
-            self._update_info.error = str(e)
-            return False
+        return True
 
     def apply_update_on_exit(
         self,
@@ -444,163 +171,17 @@ class Updater:
         silent: bool = False,
         restart_args: list[str] | None = None,
     ) -> None:
-        """Stage the downloaded update to apply when the process exits.
+        """Request the OS to apply the pending MSIX update.
 
-        Uses ``wait_exit_then_apply_updates`` which returns immediately.
-        The Velopack Update.exe runs after the current process exits,
-        applies the update, and optionally relaunches the application.
-
-        The caller is responsible for shutting down the process (e.g.
-        ``QApplication.quit()``) after this method returns.
-
-        Args:
-            restart: Whether to restart the application after applying.
-            silent: When ``True``, suppress the Velopack splash window.
-            restart_args: Optional arguments to pass to the restarted application.
+        The Windows Store / .appinstaller subsystem applies the update
+        when the application exits.  This method is a state-transition
+        marker; the caller is responsible for quitting the process.
         """
         if not self.is_installed:
-            raise NotImplementedError('Updates are only supported for Velopack installs')
+            raise NotImplementedError('Updates are only supported for MSIX installs')
 
         if self._state != UpdateState.DOWNLOADED or not self._update_info:
             raise RuntimeError('No downloaded update to apply')
 
-        if self._update_info._velopack_info is None:
-            raise RuntimeError('No Velopack update info available')
-
-        try:
-            manager = self._get_velopack_manager()
-            if manager is None:
-                raise RuntimeError('Velopack manager not available')
-
-            logger.info('Applying update (restart=%s, silent=%s)', restart, silent)
-            self._state = UpdateState.APPLYING
-            manager.wait_exit_then_apply_updates(
-                self._update_info._velopack_info,
-                silent=silent,
-                restart=restart,
-                restart_args=restart_args or [],
-            )
-
-        except Exception as e:
-            logger.exception('Failed to apply update')
-            self._state = UpdateState.FAILED
-            self._update_info.error = str(e)
-            raise
-
-    _NOT_INSTALLED_SENTINEL = 'not properly installed'
-    """Substring the Velopack SDK includes in its ``RuntimeError`` when
-    the application was not installed via Velopack."""
-
-    def _get_velopack_manager(self) -> Any:
-        """Get or create the Velopack UpdateManager.
-
-        Returns:
-            UpdateManager instance, or ``None`` when the application is
-            not running from a Velopack installation.
-
-        Raises:
-            RuntimeError: If the ``UpdateManager`` could not be created
-                for a reason *other* than the app not being installed
-                (e.g. a genuine SDK or configuration problem).
-        """
-        if self._velopack_manager is not None:
-            return self._velopack_manager
-
-        if self._velopack_not_installed:
-            return None
-
-        try:
-            options = velopack.UpdateOptions(
-                AllowVersionDowngrade=False,
-                MaximumDeltasBeforeFallback=10,  # required by the SDK
-            )
-            options.ExplicitChannel = self._config.channel_name
-
-            self._velopack_manager = velopack.UpdateManager(
-                self._config.repo_url,
-                options,
-            )
-
-            # The Velopack-installed version is authoritative; Python
-            # package metadata may be stale after an in-place update.
-            self._current_version = Version(
-                self._velopack_manager.get_current_version(),
-            )
-
-            logger.debug(
-                'Velopack manager created: app_id=%s, version=%s, portable=%s',
-                self._velopack_manager.get_app_id(),
-                self._current_version,
-                self._velopack_manager.get_is_portable(),
-            )
-            return self._velopack_manager
-        except RuntimeError as e:
-            if self._NOT_INSTALLED_SENTINEL in str(e).lower():
-                logger.debug('Not a Velopack install: %s', e)
-                self._velopack_not_installed = True
-                return None
-            logger.warning('Velopack manager creation failed: %s', e)
-            raise
-        except Exception as e:
-            logger.warning('Velopack manager creation failed: %s', e)
-            raise RuntimeError(f'Failed to create Velopack UpdateManager: {e}') from e
-
-
-def on_before_uninstall(version: str) -> None:
-    """Velopack hook: called before the app is uninstalled.
-
-    Removes the ``synodic://`` URI protocol handler and auto-startup
-    registrations.
-
-    Args:
-        version: The current version string (provided by Velopack).
-    """
-    logger.info('Velopack uninstall hook fired for version %s', version)
-    try:
-        remove_protocol()
-        logger.info('Protocol handler removed successfully')
-    except Exception:
-        logger.warning('Protocol removal failed during uninstall hook', exc_info=True)
-    try:
-        remove_startup()
-        logger.info('Auto-startup registration removed successfully')
-    except Exception:
-        logger.warning('Auto-startup removal failed during uninstall hook', exc_info=True)
-
-
-class _VelopackState:
-    """Module-level mutable state (avoids ``global`` statements)."""
-
-    initialized: bool = False
-
-
-def initialize_velopack() -> None:
-    """Initialize Velopack at application startup.
-
-    This should be called as early as possible in the application lifecycle,
-    before any UI is shown. Velopack may need to perform cleanup or apply
-    pending updates.
-
-    Safe to call more than once — subsequent calls are no-ops.
-
-    .. note::
-
-        The SDK's callback hooks only accept ``PyCFunction`` — add an
-        uninstall hook here when that is fixed upstream.
-    """
-    if _VelopackState.initialized:
-        return
-    _VelopackState.initialized = True
-
-    # During post-update restarts Velopack's App.run() may exit the
-    # current process (to apply the update and relaunch).  Each
-    # short-lived process writes "Initializing Velopack" to the shared
-    # log file before being replaced, so multiple entries followed by a
-    # single "initialized successfully" is expected behaviour.
-    logger.info('Initializing Velopack (exe=%s)', sys.executable)
-    try:
-        app = velopack.App()
-        app.run()
-        logger.info('Velopack initialized successfully')
-    except Exception as e:
-        logger.info('Velopack initialization skipped (not a Velopack install): %s', e)
+        logger.info('Staging MSIX update (restart=%s, silent=%s)', restart, silent)
+        self._state = UpdateState.APPLYING

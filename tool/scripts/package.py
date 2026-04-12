@@ -1,6 +1,6 @@
 """Packaging script for Synodic Client.
 
-Orchestrates PyInstaller + Velopack ``vpk pack`` to produce a complete
+Orchestrates PyInstaller + MSIX packaging to produce a complete
 release from source.  Invoked via ``pdm run package``.
 
 Usage examples:
@@ -19,15 +19,13 @@ from typing import Annotated
 import typer
 
 from synodic_client import __version__
-from synodic_client.schema import platform_suffix
-from synodic_client.updater import pep440_to_semver
 from tool.scripts.common import ICON_FILE, MAIN_EXE, OUTPUT_DIR, PACK_DIR, PACK_ID, build, kill_running_instances, run
 
-app = typer.Typer(help='Package Synodic Client with PyInstaller and Velopack.')
+app = typer.Typer(help='Package Synodic Client with PyInstaller and MSIX.')
 
 
 class Channel(StrEnum):
-    """Velopack release channels."""
+    """Release channels."""
 
     dev = 'dev'
     stable = 'stable'
@@ -36,7 +34,7 @@ class Channel(StrEnum):
 @app.command()
 def main(
     *,
-    channel: Annotated[Channel, typer.Option(help='Velopack release channel.')] = Channel.dev,
+    channel: Annotated[Channel, typer.Option(help='Release channel.')] = Channel.dev,
     local_source: Annotated[
         str | None, typer.Option(help='Path to copy releases to (for local dev update testing).')
     ] = None,
@@ -45,9 +43,7 @@ def main(
     ] = False,
 ) -> None:
     """Entry point for the packaging script."""
-    velopack_channel = f'{channel.value}-{platform_suffix()}'
-    pack_version = pep440_to_semver(__version__)
-    print(f'Packaging Synodic Client v{__version__} (pack version: {pack_version}, channel: {velopack_channel})')
+    print(f'Packaging Synodic Client v{__version__} (channel: {channel.value})')
 
     # Step 1: PyInstaller
     if not skip_pyinstaller:
@@ -70,59 +66,45 @@ def main(
         config_path.write_text(json.dumps(portable_config, indent=2), encoding='utf-8')
         print(f'Wrote portable config to {config_path}')
 
-    # Step 2: vpk pack
-    vpk_cmd = shutil.which('vpk')
-    if vpk_cmd is None:
-        print('ERROR: vpk not found. Install with: dotnet tool install -g vpk', file=sys.stderr)
+    # Step 2: MSIX packaging
+    makeappx = shutil.which('makeappx')
+    if makeappx is None:
+        print('ERROR: makeappx not found. Install the Windows SDK or add it to PATH.', file=sys.stderr)
         sys.exit(1)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    msix_path = OUTPUT_DIR / f'{PACK_ID}-{channel.value}.msix'
 
     run(
         [
-            vpk_cmd,
+            makeappx,
             'pack',
-            '--packId',
-            PACK_ID,
-            '--packVersion',
-            pack_version,
-            '--packDir',
+            '/d',
             str(PACK_DIR),
-            '--mainExe',
-            MAIN_EXE,
-            '--icon',
-            str(ICON_FILE),
-            '--channel',
-            velopack_channel,
-            '--shortcutLocations',
-            'StartMenuRoot',
-            '-o',
-            str(OUTPUT_DIR),
+            '/p',
+            str(msix_path),
+            '/o',  # overwrite
         ],
-        description='Packing with Velopack',
+        description='Packing with makeappx',
     )
 
-    # Step 3: Optionally copy to a local source directory
+    # Step 3: Sign (optional — signtool must be on PATH)
+    signtool = shutil.which('signtool')
+    if signtool is not None:
+        print('Signing is available but requires a certificate; skipping auto-sign.')
+        print(f'  To sign manually: signtool sign /fd SHA256 /a {msix_path}')
+    else:
+        print('signtool not found — MSIX is unsigned (sideload only).')
+
+    # Step 4: Optionally copy to a local source directory
     if local_source:
         local_path = Path(local_source)
         local_path.mkdir(parents=True, exist_ok=True)
+        dest = local_path / msix_path.name
+        shutil.copy2(msix_path, dest)
+        print(f'Copied MSIX to: {dest}')
 
-        run(
-            [
-                vpk_cmd,
-                'upload',
-                'local',
-                '--path',
-                str(local_path),
-                '-o',
-                str(OUTPUT_DIR),
-                '--channel',
-                velopack_channel,
-            ],
-            description=f'Uploading to local source: {local_path}',
-        )
-
-    print(f'\nDone! Releases written to: {OUTPUT_DIR}')
+    print(f'\nDone! MSIX written to: {msix_path}')
     if local_source:
         print(f'Local update source: {local_source}')
 

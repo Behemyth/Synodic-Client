@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 async def check_self_update(client: Client) -> UpdateCheckResult:
     """Check whether a newer version of synodic-client is available.
 
-    Runs the blocking Velopack check in a thread-pool executor.
+    Runs the blocking check in a thread-pool executor.
 
     Args:
         client: The Synodic Client service facade.

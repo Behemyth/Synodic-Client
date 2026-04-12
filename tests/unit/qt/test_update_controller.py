@@ -341,36 +341,15 @@ class TestApplyUpdate:
         app.quit.assert_not_called()
 
     @staticmethod
-    def test_apply_update_refreshes_startup_registry_when_frozen() -> None:
-        """_apply_update should call sync_startup before quitting."""
+    def test_apply_update_delegates_to_client() -> None:
+        """_apply_update should call client.apply_update_on_exit then quit."""
         ctrl, app, client, banner, model = _make_controller()
         ctrl._pending_version = '2.0.0'
 
-        with (
-            patch('synodic_client.application.update_controller.sync_startup') as mock_sync,
-            patch('synodic_client.application.update_controller.sys') as mock_sys,
-        ):
-            mock_sys.executable = r'C:\app\synodic.exe'
-            ctrl._apply_update()
+        ctrl._apply_update()
 
-        mock_sync.assert_called_once_with(r'C:\app\synodic.exe', auto_start=True)
         client.apply_update_on_exit.assert_called_once()
         app.quit.assert_called_once()
-
-    @staticmethod
-    def test_apply_update_passes_auto_start_false_from_config() -> None:
-        """sync_startup receives auto_start=False when config says so."""
-        ctrl, app, client, banner, model = _make_controller(auto_start=False)
-        ctrl._pending_version = '2.0.0'
-
-        with (
-            patch('synodic_client.application.update_controller.sync_startup') as mock_sync,
-            patch('synodic_client.application.update_controller.sys') as mock_sys,
-        ):
-            mock_sys.executable = r'C:\app\synodic.exe'
-            ctrl._apply_update()
-
-        mock_sync.assert_called_once_with(r'C:\app\synodic.exe', auto_start=False)
 
 
 # ---------------------------------------------------------------------------

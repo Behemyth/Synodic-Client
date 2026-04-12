@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  .appinstaller template for sideload auto-update.
+
+  CI should replace the placeholder tokens before publishing:
+    {{VERSION}}  — e.g. 1.2.3.0    (four-part MSIX version)
+    {{BASE_URI}} — e.g. https://synodic.github.io/synodic-client/releases
+
+  Place the generated .appinstaller file alongside the .msix at the BASE_URI.
+  Windows will check for updates automatically based on the policy below.
+-->
+<AppInstaller
+  xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+  Uri="{{BASE_URI}}/synodic.appinstaller"
+  Version="{{VERSION}}">
+
+  <MainBundle
+    Name="synodic"
+    Version="{{VERSION}}"
+    Uri="{{BASE_URI}}/synodic.msix"
+    Publisher="CN=Synodic" />
+
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="4" ShowPrompt="true" />
+    <AutomaticBackgroundTask />
+    <ForceUpdateFromAnyVersion>false</ForceUpdateFromAnyVersion>
+  </UpdateSettings>
+
+</AppInstaller>

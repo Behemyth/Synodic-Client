@@ -27,7 +27,6 @@ class TestRunStartupPreamble:
             patch(f'{_MODULE}.register_protocol') as mock_proto,
             patch(f'{_MODULE}.resolve_config') as mock_resolve,
             patch(f'{_MODULE}.sync_startup'),
-            patch(f'{_MODULE}.getattr', return_value=True),
         ):
             mock_resolve.return_value = MagicMock(auto_start=True)
             run_startup_preamble(r'C:\app\synodic.exe')
@@ -44,7 +43,6 @@ class TestRunStartupPreamble:
             patch(f'{_MODULE}.register_protocol'),
             patch(f'{_MODULE}.resolve_config') as mock_resolve,
             patch(f'{_MODULE}.sync_startup') as mock_sync,
-            patch(f'{_MODULE}.getattr', return_value=True),
         ):
             mock_resolve.return_value = MagicMock(auto_start=True)
             run_startup_preamble(r'C:\app\synodic.exe')
@@ -59,7 +57,6 @@ class TestRunStartupPreamble:
             patch(f'{_MODULE}.register_protocol'),
             patch(f'{_MODULE}.resolve_config') as mock_resolve,
             patch(f'{_MODULE}.sync_startup') as mock_sync,
-            patch(f'{_MODULE}.getattr', return_value=True),
         ):
             mock_resolve.return_value = MagicMock(auto_start=False)
             run_startup_preamble(r'C:\app\synodic.exe')
@@ -75,7 +72,6 @@ class TestRunStartupPreamble:
             patch(f'{_MODULE}.resolve_config') as mock_resolve,
             patch(f'{_MODULE}.sync_startup') as mock_sync,
             patch(f'{_MODULE}.sys') as mock_sys,
-            patch(f'{_MODULE}.getattr', return_value=True),
         ):
             mock_sys.executable = r'C:\Python\python.exe'
             mock_resolve.return_value = MagicMock(auto_start=True)
@@ -85,21 +81,19 @@ class TestRunStartupPreamble:
         mock_sync.assert_called_once_with(r'C:\Python\python.exe', auto_start=True)
 
     @staticmethod
-    def test_skips_protocol_when_not_frozen() -> None:
-        """Protocol registration is skipped in non-frozen builds."""
+    def test_idempotent() -> None:
+        """Repeated calls are silently ignored."""
         with (
-            patch(f'{_MODULE}.seed_user_config_from_build'),
-            patch(f'{_MODULE}.register_protocol') as mock_proto,
+            patch(f'{_MODULE}.seed_user_config_from_build') as mock_seed,
+            patch(f'{_MODULE}.register_protocol'),
             patch(f'{_MODULE}.resolve_config') as mock_resolve,
-            patch(f'{_MODULE}.sync_startup') as mock_sync,
-            patch(f'{_MODULE}.getattr', return_value=False),
+            patch(f'{_MODULE}.sync_startup'),
         ):
             mock_resolve.return_value = MagicMock(auto_start=True)
-            run_startup_preamble(r'C:\Python\python.exe')
+            run_startup_preamble(r'C:\app\synodic.exe')
+            run_startup_preamble(r'C:\app\synodic.exe')
 
-        mock_proto.assert_not_called()
-        # sync_startup is still called — it handles the frozen guard internally
-        mock_sync.assert_called_once()
+        mock_seed.assert_called_once()
 
     @staticmethod
     def test_idempotent_on_second_call() -> None:

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -33,7 +32,6 @@ from synodic_client.operations.schema import UpdateCheckResult
 from synodic_client.operations.update import apply_self_update, check_self_update, download_self_update
 from synodic_client.resolution import resolve_update_config
 from synodic_client.schema import ResolvedConfig, UpdateState
-from synodic_client.startup import sync_startup
 
 if TYPE_CHECKING:
     from synodic_client.application.config_store import ConfigStore
@@ -418,12 +416,7 @@ class UpdateController:
     # ------------------------------------------------------------------
 
     def _apply_update(self, *, silent: bool = False) -> None:
-        """Apply the downloaded update and restart.
-
-        Args:
-            silent: When ``True``, suppress the Velopack splash window
-                by using ``wait_exit_then_apply_updates``.
-        """
+        """Apply the downloaded update and restart."""
         if self._client.updater is None:
             return
 
@@ -432,14 +425,6 @@ class UpdateController:
             return
 
         try:
-            # Re-register the startup entry with the current exe path so
-            # the registry value stays valid even if Velopack relocates
-            # the binary during the update.  The relaunched process will
-            # overwrite it again via run_startup_preamble, but this
-            # ensures the entry is never stale between the update and
-            # the next launch.
-            sync_startup(sys.executable, auto_start=self._store.config.auto_start)
-
             apply_self_update(self._client, restart=True, silent=silent)
             self._pending_version = None
             logger.info('Update scheduled — restarting application')
