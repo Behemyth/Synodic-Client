@@ -32,6 +32,7 @@ from synodic_client.operations.bootstrap import init_services
 from synodic_client.protocol import extract_uri_from_args
 from synodic_client.resolution import ResolvedConfig
 from synodic_client.subprocess_patch import apply as _apply_subprocess_patch
+from synodic_client.updater import initialize_velopack
 
 
 def _init_services(logger: logging.Logger) -> tuple[Client, API, ResolvedConfig]:
@@ -203,7 +204,7 @@ def _configure_startup(
     dev_mode: bool,
     debug: bool,
 ) -> None:
-    """Run the early startup sequence: logging banner, URI log."""
+    """Run the early startup sequence: Velopack, logging banner, URI log."""
     logger.info('Log file: %s', log_path())
     logger.info(
         'Environment: Python %s | PySide6 %s | porringer %s | platform=%s | frozen=%s',
@@ -217,8 +218,9 @@ def _configure_startup(
     _install_exception_hook(logger)
 
     if not dev_mode:
-        # Idempotent — safe to call even when bootstrap.py has already
-        # executed the preamble before heavy imports.
+        # All three functions are idempotent — safe to call even when
+        # bootstrap.py has already executed them before heavy imports.
+        initialize_velopack()
         run_startup_preamble(sys.executable)
 
     if uri:
