@@ -84,7 +84,9 @@ if sys.platform == 'win32':
             except Exception:
                 pass
             try:
-                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE
+                ) as key:
                     winreg.DeleteValue(key, legacy_name)
             except Exception:
                 pass
@@ -109,7 +111,9 @@ if sys.platform == 'win32':
                 logger.exception('Failed to remove auto-startup registration for %s', value_name)
 
             try:
-                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE
+                ) as key:
                     winreg.DeleteValue(key, value_name)
                 logger.debug('Removed StartupApproved flag for %s', value_name)
             except FileNotFoundError:

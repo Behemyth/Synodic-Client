@@ -10,6 +10,8 @@ import pytest
 
 pytest.importorskip('PySide6.QtWidgets', reason='PySide6 requires system Qt libraries')
 
+from typer.testing import CliRunner
+
 from spurtle.cli import app
 from spurtle.operations.schema import (
     ConfigKeyInfo,
@@ -18,7 +20,6 @@ from spurtle.operations.schema import (
     UpdateCheckResult,
     UpdateResult,
 )
-from typer.testing import CliRunner
 
 runner = CliRunner()
 

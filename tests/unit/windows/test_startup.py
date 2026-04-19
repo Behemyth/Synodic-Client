@@ -1,7 +1,7 @@
 ﻿"""Tests for Windows auto-startup registration."""
 
 import winreg
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

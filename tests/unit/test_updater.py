@@ -273,7 +273,7 @@ class TestCheckAppinstallerFeed:
 
     @staticmethod
     def test_returns_none_when_no_version(updater: Updater) -> None:
-        xml_body = "<AppInstaller></AppInstaller>"
+        xml_body = '<AppInstaller></AppInstaller>'
 
         mock_resp = MagicMock()
         mock_resp.read.return_value = xml_body.encode('utf-8')

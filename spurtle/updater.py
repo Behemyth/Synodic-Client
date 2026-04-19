@@ -15,6 +15,7 @@ import urllib.request
 from collections.abc import Callable
 
 from packaging.version import Version
+
 from spurtle.protocol import _is_msix
 from spurtle.schema import (
     UpdateConfig,

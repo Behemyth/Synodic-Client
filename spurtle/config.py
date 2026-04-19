@@ -139,7 +139,7 @@ def load_user_config() -> UserConfig:
 
         try:
             data = json.loads(path.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             logger.exception('Failed to read config from %s, using defaults', path)
             return UserConfig()
 

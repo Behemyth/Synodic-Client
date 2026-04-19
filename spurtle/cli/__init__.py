@@ -13,6 +13,7 @@ Restructured as a package with resource-verb subcommands:
 from typing import Annotated
 
 import typer
+
 from spurtle import __version__
 from spurtle.cli.config import config_app
 from spurtle.cli.debug import debug_app
