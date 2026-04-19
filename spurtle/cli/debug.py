@@ -1,4 +1,4 @@
-"""Debug commands for inspecting and controlling the Synodic Client.
+"""Debug commands for inspecting and controlling the Spurtle.
 
     sprt debug state [--live]
     sprt debug actions [--live]
@@ -22,7 +22,7 @@ import typer
 from spurtle.operations.schema import DEBUG_ACTIONS, GUI_ONLY_ACTIONS
 
 debug_app = typer.Typer(
-    help='Inspect and control the Synodic Client (headless by default, --live for IPC).',
+    help='Inspect and control the Spurtle (headless by default, --live for IPC).',
     add_completion=False,
 )
 

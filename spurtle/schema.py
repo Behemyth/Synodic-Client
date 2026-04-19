@@ -1,4 +1,4 @@
-"""Core data models for the Synodic Client.
+"""Core data models for the Spurtle.
 
 Contains configuration schemas (Pydantic), update-lifecycle enums and
 dataclasses, and the immutable runtime configuration snapshot.  These

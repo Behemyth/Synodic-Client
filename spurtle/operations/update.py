@@ -26,7 +26,7 @@ async def check_self_update(client: Client) -> UpdateCheckResult:
     Runs the blocking check in a thread-pool executor.
 
     Args:
-        client: The Synodic Client service facade.
+        client: The Spurtle service facade.
 
     Returns:
         An :class:`UpdateCheckResult` describing availability.
@@ -66,7 +66,7 @@ async def download_self_update(
     """Download a self-update, reporting progress via *on_progress*.
 
     Args:
-        client: The Synodic Client service facade.
+        client: The Spurtle service facade.
         on_progress: Optional callback for percentage progress (0–100).
 
     Returns:
@@ -97,7 +97,7 @@ def apply_self_update(client: Client, *, restart: bool = True, silent: bool = Fa
     """Schedule the downloaded update to apply on exit.
 
     Args:
-        client: The Synodic Client service facade.
+        client: The Spurtle service facade.
         restart: Whether to restart after applying.
         silent: Whether to suppress the Velopack splash window.
     """

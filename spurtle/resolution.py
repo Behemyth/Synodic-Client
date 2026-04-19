@@ -1,4 +1,4 @@
-"""Configuration resolution for the Synodic Client.
+"""Configuration resolution for the Spurtle.
 
 Combines ``BuildConfig`` (read-only, next to exe) and ``UserConfig``
 (read-write, ``%LOCALAPPDATA%``) into an immutable ``ResolvedConfig``

@@ -52,7 +52,7 @@ class UpdateController:
     app:
         The running ``QApplication`` (needed for ``quit()`` on auto-apply).
     client:
-        The Synodic Client service facade.
+        The Spurtle service facade.
     model:
         The shared :class:`UpdateModel` that views observe.
     store:
@@ -71,7 +71,7 @@ class UpdateController:
 
         Args:
             app: The running ``QApplication``.
-            client: The Synodic Client service facade.
+            client: The Spurtle service facade.
             model: The shared :class:`UpdateModel`.
             store: The centralised :class:`ConfigStore`.
         """

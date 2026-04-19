@@ -1,4 +1,4 @@
-"""The `spurtle` package provides the core functionality for the Synodic Client application."""
+"""The `spurtle` package provides the core functionality for the Spurtle application."""
 
 import importlib.metadata
 

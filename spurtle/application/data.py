@@ -1,4 +1,4 @@
-"""Shared data coordinator for the Synodic Client application.
+"""Shared data coordinator for the Spurtle application.
 
 Centralises porringer API calls so that plugin discovery, directory
 listing, and runtime context resolution happen once per refresh cycle

@@ -1,4 +1,4 @@
-"""Screen class for the Synodic Client application."""
+"""Screen class for the Spurtle application."""
 
 import asyncio
 import logging
@@ -1453,7 +1453,7 @@ class MainWindow(QMainWindow):
         self._store = store
         self._coordinator: DataCoordinator | None = DataCoordinator(porringer) if porringer is not None else None
         self._package_store: PackageStateStore | None = PackageStateStore(self) if porringer is not None else None
-        self.setWindowTitle('Synodic Client')
+        self.setWindowTitle('Spurtle')
         self.setMinimumSize(*MAIN_WINDOW_MIN_SIZE)
         self.setWindowIcon(app_icon())
 
@@ -1592,7 +1592,7 @@ class MainWindow(QMainWindow):
 
 
 class Screen:
-    """Screen class for the Synodic Client application."""
+    """Screen class for the Spurtle application."""
 
     _window: MainWindow | None = None
 

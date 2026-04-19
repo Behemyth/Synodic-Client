@@ -38,7 +38,7 @@ def init_services() -> tuple[Client, API, ResolvedConfig]:
     cached_dirs = porringer.cache.list_directories()
 
     logger.info(
-        'Synodic Client v%s started (channel: %s, source: %s, cached_projects: %d)',
+        'Spurtle v%s started (channel: %s, source: %s, cached_projects: %d)',
         client.version,
         update_config.channel.name,
         update_config.repo_url,

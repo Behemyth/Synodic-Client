@@ -14,7 +14,7 @@ import typer
 from spurtle.cli.output import render
 
 config_app = typer.Typer(
-    help='Read and write Synodic Client configuration.',
+    help='Read and write Spurtle configuration.',
     add_completion=False,
 )
 

@@ -41,7 +41,7 @@ class TrayScreen:
 
         Args:
             app: The running ``QApplication``.
-            client: The Synodic Client service.
+            client: The Spurtle service.
             window: The main application window.
             store: The centralised :class:`ConfigStore`.
         """

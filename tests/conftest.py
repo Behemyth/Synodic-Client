@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the Synodic Client test suite."""
+"""Shared pytest fixtures for the Spurtle test suite."""
 
 from pathlib import Path
 
