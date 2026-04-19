@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -163,7 +163,7 @@ async def resolve_profile(url: str) -> tuple[SetupProfile, str | None]:
 
 
 @asynccontextmanager
-async def open_manifest(url: str) -> AsyncIterator[Path]:
+async def open_manifest(url: str) -> AsyncGenerator[Path]:
     """Resolve *url* to a local manifest path, cleaning up on exit.
 
     Usage::
@@ -180,7 +180,7 @@ async def open_manifest(url: str) -> AsyncIterator[Path]:
 
 
 @asynccontextmanager
-async def open_profile(url: str) -> AsyncIterator[SetupProfile]:
+async def open_profile(url: str) -> AsyncGenerator[SetupProfile]:
     """Download, parse, and validate a remote setup profile.
 
     The temporary download directory is cleaned up automatically
@@ -237,10 +237,11 @@ async def preview_manifest_stream(
         :data:`PreviewEvent` instances as they arrive.
     """
     temp_dir: str | None = None
+    manifest_path: Path | None
     if resolve:
         manifest_path, temp_dir = await resolve_manifest_path(url)
     else:
-        manifest_path = Path(url) if resolve_local_path(url) is not None else None  # type: ignore[assignment]
+        manifest_path = resolve_local_path(url)
 
     manifest_path_str = str(manifest_path) if manifest_path is not None else url
     temp_dir_str = temp_dir or ''

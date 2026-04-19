@@ -32,11 +32,13 @@ class TestUpdateConfig:
 
     @staticmethod
     def test_channel_name_stable() -> None:
+        """Stable channel should render as stable."""
         config = UpdateConfig(channel=UpdateChannel.STABLE)
         assert config.channel_name == 'stable'
 
     @staticmethod
     def test_channel_name_development() -> None:
+        """Development channel should render as dev."""
         config = UpdateConfig(channel=UpdateChannel.DEVELOPMENT)
         assert config.channel_name == 'dev'
 
@@ -46,29 +48,35 @@ class TestUpdater:
 
     @staticmethod
     def test_initial_state(updater: Updater) -> None:
+        """Updater starts in the no-update state."""
         assert updater.state == UpdateState.NO_UPDATE
 
     @staticmethod
     def test_current_version(updater: Updater) -> None:
+        """Current version exposes the constructor value."""
         assert updater.current_version == Version('1.0.0')
 
     @staticmethod
     def test_default_config(updater: Updater) -> None:
+        """Default config should target the repository defaults."""
         assert updater._config.repo_url == GITHUB_REPO_URL
         assert updater._config.channel == UpdateChannel.STABLE
 
     @staticmethod
     def test_custom_config(updater_with_config: Updater) -> None:
+        """Custom config should be preserved unchanged."""
         assert updater_with_config._config.repo_url == 'https://example.com/updates'
         assert updater_with_config._config.channel == UpdateChannel.DEVELOPMENT
 
     @staticmethod
     def test_is_installed_when_msix(updater: Updater) -> None:
+        """MSIX detection should mark the updater as installed."""
         with patch(f'{_MODULE}._is_msix', return_value=True):
             assert updater.is_installed is True
 
     @staticmethod
     def test_is_installed_when_not_msix(updater: Updater) -> None:
+        """Non-MSIX installs should report as not installed."""
         with patch(f'{_MODULE}._is_msix', return_value=False):
             assert updater.is_installed is False
 
@@ -78,6 +86,7 @@ class TestUpdaterCheckForUpdate:
 
     @staticmethod
     def test_check_not_installed(updater: Updater) -> None:
+        """Non-MSIX installs should not check for updates."""
         with patch(f'{_MODULE}._is_msix', return_value=False):
             info = updater.check_for_update()
 
@@ -87,6 +96,7 @@ class TestUpdaterCheckForUpdate:
 
     @staticmethod
     def test_check_no_update(updater: Updater) -> None:
+        """Matching feed versions should yield no available update."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=True),
             patch.object(updater, '_check_appinstaller_feed', return_value=Version('1.0.0')),
@@ -98,6 +108,7 @@ class TestUpdaterCheckForUpdate:
 
     @staticmethod
     def test_check_update_available(updater: Updater) -> None:
+        """Newer feed versions should surface as available updates."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=True),
             patch.object(updater, '_check_appinstaller_feed', return_value=Version('2.0.0')),
@@ -110,6 +121,7 @@ class TestUpdaterCheckForUpdate:
 
     @staticmethod
     def test_check_error(updater: Updater) -> None:
+        """Feed errors should transition the updater to failed."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=True),
             patch.object(updater, '_check_appinstaller_feed', side_effect=Exception('Network error')),
@@ -157,6 +169,7 @@ class TestUpdaterDownloadUpdate:
 
     @staticmethod
     def test_download_not_installed(updater: Updater) -> None:
+        """Downloading on non-MSIX installs should not be supported."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=False),
             pytest.raises(NotImplementedError, match='MSIX'),
@@ -165,12 +178,14 @@ class TestUpdaterDownloadUpdate:
 
     @staticmethod
     def test_download_no_update_available(updater: Updater) -> None:
+        """Download should fail when no update has been discovered."""
         with patch(f'{_MODULE}._is_msix', return_value=True):
             result = updater.download_update()
         assert result is False
 
     @staticmethod
     def test_download_success(updater: Updater) -> None:
+        """Available updates should transition to downloaded."""
         updater._state = UpdateState.UPDATE_AVAILABLE
         updater._update_info = UpdateInfo(
             available=True,
@@ -186,6 +201,7 @@ class TestUpdaterDownloadUpdate:
 
     @staticmethod
     def test_download_calls_progress_callback(updater: Updater) -> None:
+        """Successful downloads should report 100 percent progress."""
         updater._state = UpdateState.UPDATE_AVAILABLE
         updater._update_info = UpdateInfo(
             available=True,
@@ -205,6 +221,7 @@ class TestUpdaterApplyUpdate:
 
     @staticmethod
     def test_apply_not_installed(updater: Updater) -> None:
+        """Applying updates on non-MSIX installs should not be supported."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=False),
             pytest.raises(NotImplementedError, match='MSIX'),
@@ -213,6 +230,7 @@ class TestUpdaterApplyUpdate:
 
     @staticmethod
     def test_apply_no_downloaded_update(updater: Updater) -> None:
+        """Apply should fail when no update has been downloaded."""
         with (
             patch(f'{_MODULE}._is_msix', return_value=True),
             pytest.raises(RuntimeError, match='No downloaded update'),
@@ -221,6 +239,7 @@ class TestUpdaterApplyUpdate:
 
     @staticmethod
     def test_apply_success(updater: Updater) -> None:
+        """Downloaded updates should transition to applying."""
         updater._state = UpdateState.DOWNLOADED
         updater._update_info = UpdateInfo(
             available=True,
@@ -239,6 +258,7 @@ class TestCheckAppinstallerFeed:
 
     @staticmethod
     def test_parses_version_from_main_bundle(updater: Updater) -> None:
+        """MainBundle version should be preferred when present."""
         xml_body = """<?xml version="1.0" encoding="utf-8"?>
                 <AppInstaller Uri="https://example.com/spurtle.appinstaller" Version="2.1.0">
                     <MainBundle Name="spurtle" Version="2.1.0" Uri="https://example.com/spurtle.msixbundle" />
@@ -273,6 +293,7 @@ class TestCheckAppinstallerFeed:
 
     @staticmethod
     def test_returns_none_when_no_version(updater: Updater) -> None:
+        """Feeds without a version attribute should return None."""
         xml_body = '<AppInstaller></AppInstaller>'
 
         mock_resp = MagicMock()

@@ -1,4 +1,4 @@
-"""Packaging script for Synodic Client.
+"""Packaging script for Spurtle.
 
 Orchestrates PyInstaller + MSIX packaging to produce a complete
 release from source.  Invoked via ``pdm run package``.
@@ -19,9 +19,9 @@ from typing import Annotated
 import typer
 
 from spurtle import __version__
-from tool.scripts.common import ICON_FILE, MAIN_EXE, OUTPUT_DIR, PACK_DIR, PACK_ID, build, kill_running_instances, run
+from tool.scripts.common import OUTPUT_DIR, PACK_DIR, PACK_ID, build, kill_running_instances, run
 
-app = typer.Typer(help='Package Synodic Client with PyInstaller and MSIX.')
+app = typer.Typer(help='Package Spurtle with PyInstaller and MSIX.')
 
 
 class Channel(StrEnum):
@@ -43,7 +43,7 @@ def main(
     ] = False,
 ) -> None:
     """Entry point for the packaging script."""
-    print(f'Packaging Synodic Client v{__version__} (channel: {channel.value})')
+    print(f'Packaging Spurtle v{__version__} (channel: {channel.value})')
 
     # Step 1: PyInstaller
     if not skip_pyinstaller:

@@ -11,6 +11,7 @@ import asyncio
 from typing import Annotated
 
 import typer
+
 from spurtle.cli.output import render
 
 update_app = typer.Typer(

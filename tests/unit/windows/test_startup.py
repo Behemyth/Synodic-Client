@@ -1,4 +1,4 @@
-﻿"""Tests for Windows auto-startup registration."""
+"""Tests for Windows auto-startup registration."""
 
 import winreg
 from unittest.mock import patch
@@ -20,6 +20,7 @@ from spurtle.startup import (
 from .conftest import make_registry_key
 
 _MSIX_PATCH = 'spurtle.startup._is_msix'
+_EXPECTED_DELETE_CALL_COUNT = 4
 
 
 @pytest.fixture(autouse=True)
@@ -30,8 +31,11 @@ def _not_msix():
 
 
 class TestRegisterStartup:
+    """Tests for writing startup registration entries."""
+
     @staticmethod
     def test_writes_registry_value() -> None:
+        """Primary startup value should be written to the Run key."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key) as mock_open,
@@ -47,6 +51,7 @@ class TestRegisterStartup:
 
     @staticmethod
     def test_writes_startup_approved_enabled() -> None:
+        """StartupApproved should be marked enabled for the primary entry."""
         mock_run_key = make_registry_key()
         mock_approved_key = make_registry_key()
         with (
@@ -61,6 +66,7 @@ class TestRegisterStartup:
 
     @staticmethod
     def test_noop_when_msix() -> None:
+        """MSIX installs should skip manual startup registration."""
         with (
             patch(_MSIX_PATCH, return_value=True),
             patch.object(winreg, 'OpenKey') as mock_open,
@@ -70,8 +76,11 @@ class TestRegisterStartup:
 
 
 class TestRemoveStartup:
+    """Tests for removing startup registration entries."""
+
     @staticmethod
     def test_deletes_registry_value() -> None:
+        """Primary startup values should be removed from the registry."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -82,6 +91,7 @@ class TestRemoveStartup:
 
     @staticmethod
     def test_clears_startup_approved() -> None:
+        """Both primary and legacy StartupApproved values should be removed."""
         mock_run_key = make_registry_key()
         mock_approved_key = make_registry_key()
 
@@ -95,12 +105,13 @@ class TestRemoveStartup:
             patch.object(winreg, 'DeleteValue') as mock_delete,
         ):
             remove_startup()
-        assert mock_delete.call_count == 4
+        assert mock_delete.call_count == _EXPECTED_DELETE_CALL_COUNT
         mock_delete.assert_any_call(mock_run_key, STARTUP_VALUE_NAME)
         mock_delete.assert_any_call(mock_approved_key, STARTUP_VALUE_NAME)
 
     @staticmethod
     def test_handles_missing_value_gracefully() -> None:
+        """Missing startup values should not raise during removal."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -110,6 +121,7 @@ class TestRemoveStartup:
 
     @staticmethod
     def test_noop_when_msix() -> None:
+        """MSIX installs should skip manual startup removal."""
         with (
             patch(_MSIX_PATCH, return_value=True),
             patch.object(winreg, 'OpenKey') as mock_open,
@@ -119,8 +131,11 @@ class TestRemoveStartup:
 
 
 class TestIsStartupRegistered:
+    """Tests for detecting whether startup is currently registered."""
+
     @staticmethod
     def test_returns_true_when_present() -> None:
+        """Presence of the Run key entry should count as registered."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -137,6 +152,7 @@ class TestIsStartupRegistered:
 
     @staticmethod
     def test_returns_true_when_startup_approved_enabled() -> None:
+        """Enabled StartupApproved entries should keep startup enabled."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -153,6 +169,7 @@ class TestIsStartupRegistered:
 
     @staticmethod
     def test_returns_false_when_startup_approved_disabled() -> None:
+        """Disabled StartupApproved entries should count as not registered."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -169,6 +186,7 @@ class TestIsStartupRegistered:
 
     @staticmethod
     def test_returns_false_when_missing() -> None:
+        """Missing Run key entries should report not registered."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -178,13 +196,17 @@ class TestIsStartupRegistered:
 
     @staticmethod
     def test_returns_true_when_msix() -> None:
+        """MSIX installs report startup as managed by the OS."""
         with patch(_MSIX_PATCH, return_value=True):
             assert is_startup_registered() is True
 
 
 class TestGetRegisteredStartupPath:
+    """Tests for reading the registered startup executable path."""
+
     @staticmethod
     def test_returns_unquoted_path() -> None:
+        """Quoted registry values should be returned without quotes."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -196,6 +218,7 @@ class TestGetRegisteredStartupPath:
 
     @staticmethod
     def test_returns_none_when_missing() -> None:
+        """Missing startup values should return None."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -205,6 +228,7 @@ class TestGetRegisteredStartupPath:
 
     @staticmethod
     def test_returns_none_on_os_error() -> None:
+        """Registry read errors should return None."""
         mock_key = make_registry_key()
         with (
             patch.object(winreg, 'OpenKey', return_value=mock_key),
@@ -214,6 +238,7 @@ class TestGetRegisteredStartupPath:
 
     @staticmethod
     def test_returns_none_when_msix() -> None:
+        """MSIX installs should not expose a manual startup path."""
         with patch(_MSIX_PATCH, return_value=True):
             assert get_registered_startup_path() is None
 
@@ -222,8 +247,11 @@ _SYNC_MODULE = 'spurtle.startup'
 
 
 class TestSyncStartup:
+    """Tests for syncing startup state from resolved configuration."""
+
     @staticmethod
     def test_registers_when_auto_start_true() -> None:
+        """Auto-start enabled should register the startup entry."""
         with (
             patch(f'{_SYNC_MODULE}.getattr', return_value=True),
             patch(f'{_SYNC_MODULE}.register_startup') as mock_reg,
@@ -235,6 +263,7 @@ class TestSyncStartup:
 
     @staticmethod
     def test_removes_when_auto_start_false() -> None:
+        """Auto-start disabled should remove the startup entry."""
         with (
             patch(f'{_SYNC_MODULE}.getattr', return_value=True),
             patch(f'{_SYNC_MODULE}.register_startup') as mock_reg,
@@ -246,6 +275,7 @@ class TestSyncStartup:
 
     @staticmethod
     def test_noop_when_not_frozen() -> None:
+        """Non-frozen runs should not attempt startup sync."""
         with (
             patch(f'{_SYNC_MODULE}.getattr', return_value=False),
             patch(f'{_SYNC_MODULE}.register_startup') as mock_reg,
@@ -257,6 +287,7 @@ class TestSyncStartup:
 
     @staticmethod
     def test_noop_when_msix() -> None:
+        """MSIX installs should skip manual startup sync."""
         with (
             patch(f'{_SYNC_MODULE}.getattr', return_value=True),
             patch(_MSIX_PATCH, return_value=True),

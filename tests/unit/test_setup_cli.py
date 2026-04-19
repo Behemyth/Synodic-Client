@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from typing import TypedDict, Unpack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,10 +17,25 @@ from spurtle.schema import ResolvedConfig
 runner = CliRunner()
 
 
-def _make_config(**overrides: object) -> ResolvedConfig:
+class _ResolvedConfigOverrides(TypedDict, total=False):
+    update_source: str | None
+    update_channel: str
+    auto_update_interval_minutes: int
+    tool_update_interval_minutes: int
+    plugin_auto_update: dict[str, bool | dict[str, bool]] | None
+    prerelease_packages: dict[str, list[str]] | None
+    auto_apply: bool
+    auto_start: bool
+    debug_logging: bool
+    last_client_update: str | None
+    last_tool_updates: dict[str, str] | None
+    setup_profiles: list[str]
+
+
+def _make_config(**overrides: Unpack[_ResolvedConfigOverrides]) -> ResolvedConfig:
     from spurtle.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
 
-    defaults: dict[str, object] = {
+    defaults: _ResolvedConfigOverrides = {
         'update_source': None,
         'update_channel': 'stable',
         'auto_update_interval_minutes': DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
@@ -35,7 +50,20 @@ def _make_config(**overrides: object) -> ResolvedConfig:
         'setup_profiles': [],
     }
     defaults.update(overrides)
-    return ResolvedConfig(**defaults)  # type: ignore[arg-type]
+    return ResolvedConfig(
+        update_source=defaults['update_source'],
+        update_channel=defaults['update_channel'],
+        auto_update_interval_minutes=defaults['auto_update_interval_minutes'],
+        tool_update_interval_minutes=defaults['tool_update_interval_minutes'],
+        plugin_auto_update=defaults['plugin_auto_update'],
+        prerelease_packages=defaults['prerelease_packages'],
+        auto_apply=defaults['auto_apply'],
+        auto_start=defaults['auto_start'],
+        debug_logging=defaults['debug_logging'],
+        last_client_update=defaults['last_client_update'],
+        last_tool_updates=defaults['last_tool_updates'],
+        setup_profiles=defaults['setup_profiles'],
+    )
 
 
 # ---------------------------------------------------------------------------

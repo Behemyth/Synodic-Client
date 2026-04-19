@@ -8,7 +8,7 @@ Spurtle includes a self-update mechanism built on:
 ## Update Channels
 
 | Channel | Description | Release Type |
-|---------|-------------|---------------|
+| ------- | ----------- | ------------ |
 | `stable` | Production releases only | Final releases (e.g., `1.0.0`) |
 | `dev` | Development builds | Prereleases (e.g., `1.0.0.dev123`) |
 
@@ -79,7 +79,7 @@ class UpdateConfig:
 Velopack packages are published to GitHub Releases with the following structure:
 
 | Platform | Files |
-|----------|-------|
+| -------- | ----- |
 | Windows | `spurtle-Setup.exe`, `spurtle-{version}-full.nupkg` |
 | Linux | `spurtle.AppImage` |
 | macOS | `spurtle.app` (packaged) |

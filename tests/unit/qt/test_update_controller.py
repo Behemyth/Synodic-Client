@@ -612,7 +612,8 @@ class TestRequestRetry:
         with patch.object(ctrl, 'check_now') as mock_check:
             ctrl.request_retry()
 
-        assert ctrl._failed_version is None
+        failed_version: str | None = ctrl._failed_version
+        assert failed_version is None
         mock_check.assert_called_once_with(silent=True)
 
 

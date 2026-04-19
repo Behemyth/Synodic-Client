@@ -1,6 +1,6 @@
 """Single-instance application management using Qt local sockets.
 
-Ensures only one instance of Synodic Client runs at a time.  When a second
+Ensures only one instance of Spurtle runs at a time.  When a second
 instance is launched (e.g. by clicking a ``synodic://`` URI), it sends the
 URI to the already-running instance and exits.
 
@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QByteArray, QObject, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+
 from spurtle.application.theme import SOCKET_TIMEOUT_MS
 from spurtle.config import is_dev_mode
 

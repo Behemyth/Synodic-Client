@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from packaging.version import Version
+
 from spurtle.client import Client
 
 

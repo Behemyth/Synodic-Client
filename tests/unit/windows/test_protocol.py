@@ -6,13 +6,13 @@ from unittest.mock import patch
 
 import pytest
 
-from spurtle.protocol import PROTOCOL_NAME, _registered_protocol_names, register_protocol, remove_protocol
+import spurtle.protocol as protocol_module
 
 from .conftest import make_registry_key
 
-_EXPECTED_REGISTRY_KEY_COUNT = 2 * len(_registered_protocol_names())
+_EXPECTED_REGISTRY_KEY_COUNT = 2 * len(protocol_module._registered_protocol_names())
 
-_TEST_PROTOCOL = f'{PROTOCOL_NAME}_test'
+_TEST_PROTOCOL = f'{protocol_module.PROTOCOL_NAME}_test'
 """Temporary protocol name used by integration tests to avoid clobbering the real registration."""
 
 
@@ -28,14 +28,14 @@ class TestRegisterProtocol:
             patch.object(winreg, 'CreateKey', return_value=mock_key) as mock_create,
             patch.object(winreg, 'SetValueEx'),
         ):
-            register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
+            protocol_module.register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
 
         # Should create the protocol key and command key
         assert mock_create.call_count == _EXPECTED_REGISTRY_KEY_COUNT
 
         # Verify protocol key path
         first_call_args = mock_create.call_args_list[0][0]
-        assert first_call_args[1] == f'Software\\Classes\\{PROTOCOL_NAME}'
+        assert first_call_args[1] == f'Software\\Classes\\{protocol_module.PROTOCOL_NAME}'
 
         # Verify command key path
         second_call_args = mock_create.call_args_list[1][0]
@@ -47,11 +47,11 @@ class TestRegisterProtocol:
         mock_key = make_registry_key()
 
         with patch.object(winreg, 'CreateKey', return_value=mock_key), patch.object(winreg, 'SetValueEx') as mock_set:
-            register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
+            protocol_module.register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
 
         # Check that SetValueEx was called with 'URL Protocol'
         url_protocol_calls = [c for c in mock_set.call_args_list if c[0][1] == 'URL Protocol']
-        assert len(url_protocol_calls) == len(_registered_protocol_names())
+        assert len(url_protocol_calls) == len(protocol_module._registered_protocol_names())
 
     @staticmethod
     def test_noop_on_non_windows() -> None:
@@ -59,7 +59,7 @@ class TestRegisterProtocol:
         with patch('spurtle.protocol.sys') as mock_sys:
             mock_sys.platform = 'linux'
             # Should not raise and should not attempt winreg import
-            register_protocol('/usr/bin/spurtle')
+            protocol_module.register_protocol('/usr/bin/spurtle')
 
 
 class TestRemoveProtocol:
@@ -69,24 +69,24 @@ class TestRemoveProtocol:
     def test_deletes_registry_key() -> None:
         """Verify the protocol key is deleted."""
         with patch('spurtle.protocol._reg_delete_tree', return_value=0) as mock_delete:
-            remove_protocol()
+            protocol_module.remove_protocol()
 
-        assert mock_delete.call_count == len(_registered_protocol_names())
-        mock_delete.assert_any_call(winreg.HKEY_CURRENT_USER, f'Software\\Classes\\{PROTOCOL_NAME}')
+        assert mock_delete.call_count == len(protocol_module._registered_protocol_names())
+        mock_delete.assert_any_call(winreg.HKEY_CURRENT_USER, f'Software\\Classes\\{protocol_module.PROTOCOL_NAME}')
 
     @staticmethod
     def test_handles_missing_key_gracefully() -> None:
         """Verify no error when protocol key doesn't exist."""
         with patch('spurtle.protocol._reg_delete_tree', return_value=2):  # ERROR_FILE_NOT_FOUND
             # Should not raise
-            remove_protocol()
+            protocol_module.remove_protocol()
 
     @staticmethod
     def test_noop_on_non_windows() -> None:
         """Verify remove_protocol is a no-op on non-Windows platforms."""
         with patch('spurtle.protocol.sys') as mock_sys:
             mock_sys.platform = 'linux'
-            remove_protocol()
+            protocol_module.remove_protocol()
 
 
 class TestProtocolIntegration:
@@ -101,7 +101,7 @@ class TestProtocolIntegration:
         try:
             # Register using the test protocol name
             with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-                register_protocol(test_exe)
+                protocol_module.register_protocol(test_exe)
 
             # Verify the protocol key
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
@@ -121,7 +121,7 @@ class TestProtocolIntegration:
         finally:
             # Clean up the test key
             with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-                remove_protocol()
+                protocol_module.remove_protocol()
 
     @staticmethod
     def test_remove_deletes_registry_entries() -> None:
@@ -129,8 +129,8 @@ class TestProtocolIntegration:
         key_path = f'Software\\Classes\\{_TEST_PROTOCOL}'
 
         with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-            register_protocol(r'C:\test\spurtle_test.exe')
-            remove_protocol()
+            protocol_module.register_protocol(r'C:\test\spurtle_test.exe')
+            protocol_module.remove_protocol()
 
         with pytest.raises(FileNotFoundError):
             winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path)
@@ -144,8 +144,8 @@ class TestProtocolIntegration:
 
         try:
             with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-                register_protocol(exe_v1)
-                register_protocol(exe_v2)
+                protocol_module.register_protocol(exe_v1)
+                protocol_module.register_protocol(exe_v2)
 
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
                 command, _ = winreg.QueryValueEx(key, '')
@@ -154,7 +154,7 @@ class TestProtocolIntegration:
 
         finally:
             with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-                remove_protocol()
+                protocol_module.remove_protocol()
 
 
 class TestProtocolLive:
@@ -163,7 +163,7 @@ class TestProtocolLive:
     @staticmethod
     def test_protocol_is_registered() -> None:
         """Verify that the spurtle:// protocol handler is currently registered."""
-        key_path = f'Software\\Classes\\{PROTOCOL_NAME}'
+        key_path = f'Software\\Classes\\{protocol_module.PROTOCOL_NAME}'
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
                 _, reg_type = winreg.QueryValueEx(key, 'URL Protocol')
@@ -174,7 +174,7 @@ class TestProtocolLive:
     @staticmethod
     def test_command_points_to_existing_exe() -> None:
         """Verify the registered command points to an exe path (may not exist in CI)."""
-        key_path = f'Software\\Classes\\{PROTOCOL_NAME}\\shell\\open\\command'
+        key_path = f'Software\\Classes\\{protocol_module.PROTOCOL_NAME}\\shell\\open\\command'
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
                 command, _ = winreg.QueryValueEx(key, '')

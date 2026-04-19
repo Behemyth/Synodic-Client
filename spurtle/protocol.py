@@ -8,12 +8,14 @@ manual registry manipulation is still required.
 
 import logging
 import sys
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
 PROTOCOL_NAME = 'spurtle'
 LEGACY_PROTOCOL_NAMES = ('synodic',)
 _PROTOCOL_DESCRIPTION = 'Spurtle Protocol'
+_APPMODEL_ERROR_NO_PACKAGE = 15700
 
 
 def _registered_protocol_names() -> tuple[str, ...]:
@@ -30,10 +32,15 @@ def _is_msix() -> bool:
     try:
         import ctypes
 
+        windll = ctypes.__dict__.get('windll')
+        if windll is None:
+            return False
+        windll = cast(Any, windll)
+
         length = ctypes.c_uint32(0)
-        result = ctypes.windll.kernel32.GetCurrentPackageFullName(ctypes.byref(length), None)
-        # APPMODEL_ERROR_NO_PACKAGE (15700) means not packaged
-        return result != 15700
+        result = windll.kernel32.GetCurrentPackageFullName(ctypes.byref(length), None)
+        # APPMODEL_ERROR_NO_PACKAGE means not packaged
+        return result != _APPMODEL_ERROR_NO_PACKAGE
     except Exception:
         return False
 

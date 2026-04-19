@@ -67,9 +67,6 @@ quote-style = "single"
 [tool.coverage.report]
 skip_empty = true
 
-[tool.pyrefly]
-replace-imports-with-any = ["winreg"]
-
 [tool.pdm.version]
 source = "scm"
 

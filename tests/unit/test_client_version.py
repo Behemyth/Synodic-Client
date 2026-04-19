@@ -1,7 +1,7 @@
 """Tests for Client.version property behavior."""
 
 import importlib.metadata
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 from packaging.version import Version
 

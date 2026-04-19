@@ -491,7 +491,10 @@ class ProjectsView(QWidget):
                     continue
 
                 done_event = asyncio.Event()
-                slot = lambda _r, e=done_event: e.set()
+
+                def slot(_result: object, event: asyncio.Event = done_event) -> None:
+                    event.set()
+
                 widget.install_finished.connect(slot)
                 widget.start_install()
                 await done_event.wait()

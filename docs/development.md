@@ -5,7 +5,7 @@ We use [PDM](https://pdm-project.org/en/latest/) as our build system and package
 ## Quick Commands
 
 | Command | Description |
-|---------|-------------|
+| ------- | ----------- |
 | `pdm dev` | Launch the app from source with `--dev` isolation. Accepts `-- --debug` for verbose file logging. |
 | `pdm test` | Run pytest with coverage (`--cov=spurtle`). |
 | `pdm lint` | Composite: `analyze` + `format` + `type-check`. |
@@ -57,7 +57,7 @@ Available actions: `check_update`, `tool_update`, `refresh_data`, `show_main`, `
 ### Project management actions
 
 | Action | Arg | Headless | Description |
-|--------|-----|----------|-------------|
+| ------ | --- | -------- | ----------- |
 | `list_projects` | — | ✓ | List cached directories with validation status. |
 | `add_project` | `<path>` | ✓ | Add a directory to the cache (no file picker). |
 | `remove_project` | `<path>` | ✓ | Remove a directory from the cache. |
@@ -67,7 +67,7 @@ Available actions: `check_update`, `tool_update`, `refresh_data`, `show_main`, `
 ### GUI-only actions (require `--live`)
 
 | Action | Arg | Description |
-|--------|-----|-------------|
+| ------ | --- | ----------- |
 | `check_update` | — | Trigger a self-update check. |
 | `tool_update` | — | Run tool/package updates for all plugins. |
 | `refresh_data` | — | Mark cached data as stale. |
@@ -90,7 +90,7 @@ When ``--live`` is passed, the debug CLI communicates with the running GUI over 
 
 ### Architecture
 
-```
+```text
 CLI process                             GUI process
 ───────────                             ───────────
 sprt debug <cmd> --live
@@ -112,7 +112,7 @@ SingleInstance.send_debug_command(cmd)
 ### Transport
 
 | Detail | Value |
-|--------|-------|
+| ------ | ----- |
 | Server name | `spurtle` (production) / `spurtle-dev` (dev mode) |
 | Backing | Windows named pipe (`\\.\pipe\…`), Unix domain socket elsewhere |
 | Protocol | `debug:` prefix → synchronous JSON response; all other payloads treated as `spurtle://` URIs (fire-and-forget) |
@@ -128,7 +128,7 @@ Dev and production instances use separate server names so they can run side-by-s
 ### Key files
 
 | File | Role |
-|------|------|
+| ---- | ---- |
 | `spurtle/application/instance.py` | `SingleInstance` — QLocalServer/QLocalSocket transport, `send_debug_command()` static helper |
 | `spurtle/application/debug.py` | `DebugHandler` — dispatches commands to controllers, returns JSON |
 | `spurtle/cli/debug.py` | CLI subcommands (`state`, `actions`, `action`) that call `_send_debug()` |

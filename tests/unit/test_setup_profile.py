@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from porringer.schema import DownloadParameters
+from pydantic import ValidationError
 
 from spurtle.operations.install import resolve_profile, validate_profile_url
 from spurtle.operations.schema import SetupProfile
@@ -64,6 +66,8 @@ class TestValidateProfileUrl:
 class TestSetupProfileModel:
     """Tests for the Pydantic SetupProfile schema."""
 
+    _EXPECTED_MANIFEST_COUNT = 2
+
     @staticmethod
     def test_valid_profile() -> None:
         """A well-formed dict should parse into a SetupProfile."""
@@ -75,20 +79,20 @@ class TestSetupProfileModel:
         profile = SetupProfile.model_validate(data)
         assert profile.version == '1'
         assert profile.name == 'My Profile'
-        assert len(profile.manifests) == 2
+        assert len(profile.manifests) == TestSetupProfileModel._EXPECTED_MANIFEST_COUNT
 
     @staticmethod
     def test_missing_name_raises() -> None:
         """Omitting 'name' should raise a validation error."""
         data = {'version': '1', 'manifests': []}
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match='name'):
             SetupProfile.model_validate(data)
 
     @staticmethod
     def test_missing_version_raises() -> None:
         """Omitting 'version' should raise a validation error."""
         data = {'name': 'P', 'manifests': []}
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match='version'):
             SetupProfile.model_validate(data)
 
     @staticmethod
@@ -119,16 +123,16 @@ class TestResolveProfile:
         with (
             patch('spurtle.operations.install.DownloadParameters'),
             patch('porringer.api.API.download', new_callable=AsyncMock, return_value=mock_result),
+            pytest.raises(RuntimeError, match='Failed to download profile'),
         ):
-            with pytest.raises(RuntimeError, match='Failed to download profile'):
-                asyncio.run(resolve_profile('https://example.com/profile.json'))
+            asyncio.run(resolve_profile('https://example.com/profile.json'))
 
     @staticmethod
     def test_invalid_json_raises_runtime_error(tmp_path: Path) -> None:
         """Malformed JSON should raise RuntimeError."""
 
-        async def fake_download(params: object) -> MagicMock:
-            dest = params.destination  # type: ignore[attr-defined]
+        async def fake_download(params: DownloadParameters) -> MagicMock:
+            dest = params.destination
             dest.write_text('not json', encoding='utf-8')
             return MagicMock(success=True)
 
@@ -136,9 +140,9 @@ class TestResolveProfile:
             patch('porringer.api.API.download', side_effect=fake_download),
             patch('tempfile.mkdtemp', return_value=str(tmp_path)),
             patch('spurtle.operations.install.safe_rmtree'),
+            pytest.raises(RuntimeError, match='Failed to parse profile'),
         ):
-            with pytest.raises(RuntimeError, match='Failed to parse profile'):
-                asyncio.run(resolve_profile('https://example.com/profile.json'))
+            asyncio.run(resolve_profile('https://example.com/profile.json'))
 
     @staticmethod
     def test_manifest_url_validation(tmp_path: Path) -> None:
@@ -149,17 +153,17 @@ class TestResolveProfile:
             'manifests': ['http://evil.com/manifest.json'],
         }
 
-        async def fake_download(params: object) -> MagicMock:
-            dest = params.destination  # type: ignore[attr-defined]
+        async def fake_download(params: DownloadParameters) -> MagicMock:
+            dest = params.destination
             dest.write_text(json.dumps(profile_data), encoding='utf-8')
             return MagicMock(success=True)
 
         with (
             patch('porringer.api.API.download', side_effect=fake_download),
             patch('tempfile.mkdtemp', return_value=str(tmp_path)),
+            pytest.raises(ValueError, match='Only HTTPS'),
         ):
-            with pytest.raises(ValueError, match='Only HTTPS'):
-                asyncio.run(resolve_profile('https://example.com/profile.json'))
+            asyncio.run(resolve_profile('https://example.com/profile.json'))
 
     @staticmethod
     def test_success(tmp_path: Path) -> None:
@@ -170,8 +174,8 @@ class TestResolveProfile:
             'manifests': ['https://example.com/a.json'],
         }
 
-        async def fake_download(params: object) -> MagicMock:
-            dest = params.destination  # type: ignore[attr-defined]
+        async def fake_download(params: DownloadParameters) -> MagicMock:
+            dest = params.destination
             dest.write_text(json.dumps(profile_data), encoding='utf-8')
             return MagicMock(success=True)
 

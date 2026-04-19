@@ -126,7 +126,7 @@ class Updater:
         logger.debug('Checking appinstaller feed: %s', feed_url)
 
         req = urllib.request.Request(feed_url, headers={'User-Agent': 'spurtle'})
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=30) as resp:
             body = resp.read().decode('utf-8')
 
         # Parse Version attribute from the AppInstaller XML.
