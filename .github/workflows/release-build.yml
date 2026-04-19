@@ -122,7 +122,7 @@ jobs:
             ⚠️ This is a development build and may be unstable.
 
             ## Installation
-            - **Windows**: Download `synodic-Setup.exe` and run it
+            - **Windows**: Download `spurtle-Setup.exe` and run it
             - **Linux**: Download the `.AppImage` file, make it executable with `chmod +x`, and run
             - **macOS**: Download and extract the package
 
@@ -144,6 +144,6 @@ jobs:
             **Release ${{ needs.get-version.outputs.version }}**
 
             ## Installation
-            - **Windows**: Download `synodic-Setup.exe` and run it
+            - **Windows**: Download `spurtle-Setup.exe` and run it
             - **Linux**: Download the `.AppImage` file, make it executable with `chmod +x`, and run
             - **macOS**: Download and extract the package

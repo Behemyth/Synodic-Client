@@ -6,7 +6,7 @@ Encapsulates the one-time initialisation that both
 before the GUI event loop starts:
 
 1. Seed user config from the build config (one-time propagation).
-2. Register the ``synodic://`` URI protocol handler (no-op under MSIX).
+2. Register the ``spurtle://`` URI protocol handler (no-op under MSIX).
 3. Synchronise the Windows auto-startup state (no-op under MSIX).
 
 Heavy dependencies (PySide6, porringer) are **not** imported here so

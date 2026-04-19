@@ -22,7 +22,7 @@ hiddenimports = collect_submodules('porringer.plugin')
 hiddenimports += collect_submodules('httpcore')
 
 a = Analysis(
-    [str(REPO_ROOT / 'synodic_client' / 'application' / 'bootstrap.py')],
+    [str(REPO_ROOT / 'spurtle' / 'application' / 'bootstrap.py')],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -40,7 +40,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='synodic',
+    name='spurtle',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -61,5 +61,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='synodic',
+    name='spurtle',
 )

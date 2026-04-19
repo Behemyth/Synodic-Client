@@ -19,10 +19,10 @@ class TestProcessUriSetup:
 
     @staticmethod
     def test_setup_dispatches_profile_url() -> None:
-        """A synodic://setup URI should call the setup handler with the profile URL."""
+        """A spurtle://setup URI should call the setup handler with the profile URL."""
         received: list[str] = []
         _process_uri(
-            'synodic://setup?profile=https://example.com/profile.json',
+            'spurtle://setup?profile=https://example.com/profile.json',
             lambda _m: None,
             received.append,
         )
@@ -32,7 +32,7 @@ class TestProcessUriSetup:
     def test_setup_without_handler_is_noop() -> None:
         """When setup_handler is None, setup URIs are silently ignored."""
         _process_uri(
-            'synodic://setup?profile=https://example.com/profile.json',
+            'spurtle://setup?profile=https://example.com/profile.json',
             lambda _m: None,
             None,
         )
@@ -42,7 +42,7 @@ class TestProcessUriSetup:
         """A setup URI without a 'profile' query param should not call the handler."""
         received: list[str] = []
         _process_uri(
-            'synodic://setup',
+            'spurtle://setup',
             lambda _m: None,
             received.append,
         )
@@ -54,7 +54,7 @@ class TestProcessUriSetup:
         installs: list[str] = []
         setups: list[str] = []
         _process_uri(
-            'synodic://install?manifest=https://example.com/m.json',
+            'spurtle://install?manifest=https://example.com/m.json',
             installs.append,
             setups.append,
         )

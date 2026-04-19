@@ -1,4 +1,4 @@
-# Synodic Client
+# Spurtle
 
 An application frontend for [porringer](https://www.github.com/synodic/porringer) that helps manage and download package managers and their dependents.
 

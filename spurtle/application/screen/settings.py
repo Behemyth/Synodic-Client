@@ -1,4 +1,4 @@
-"""Settings window for the Synodic Client application.
+"""Settings window for the Spurtle application.
 
 Provides a single-page window with grouped sections for all application
 settings including update-channel selection and a manual *Check for
@@ -86,7 +86,7 @@ class SettingsWindow(QMainWindow):
         super().__init__(parent)
         self._store = store
         self._version = version
-        self.setWindowTitle('Synodic Settings')
+        self.setWindowTitle('Spurtle Settings')
         self.setMinimumSize(*SETTINGS_WINDOW_MIN_SIZE)
         self.setWindowIcon(app_icon())
         self._init_ui()

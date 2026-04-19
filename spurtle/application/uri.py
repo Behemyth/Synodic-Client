@@ -1,4 +1,4 @@
-"""URI parsing and path utilities for the ``synodic://`` scheme."""
+"""URI parsing and path utilities for the ``spurtle://`` scheme."""
 
 import logging
 import shutil
@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 def parse_uri(uri: str) -> dict[str, str | list[str]]:
-    """Parse a ``synodic://`` URI into its components.
+    """Parse a ``spurtle://`` URI into its components.
 
     Example:
-        ``synodic://install?manifest=https://example.com/foo.toml``
+        ``spurtle://install?manifest=https://example.com/foo.toml``
         returns ``{'action': 'install', 'manifest': ['https://example.com/foo.toml']}``.
 
     Args:
-        uri: A ``synodic://`` URI string.
+        uri: A ``spurtle://`` URI string.
 
     Returns:
         A dict with ``'action'`` (the host/path) and any query parameters.

@@ -6,11 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
-from spurtle.protocol import PROTOCOL_NAME, register_protocol, remove_protocol
+from spurtle.protocol import PROTOCOL_NAME, _registered_protocol_names, register_protocol, remove_protocol
 
 from .conftest import make_registry_key
 
-_EXPECTED_REGISTRY_KEY_COUNT = 2
+_EXPECTED_REGISTRY_KEY_COUNT = 2 * len(_registered_protocol_names())
 
 _TEST_PROTOCOL = f'{PROTOCOL_NAME}_test'
 """Temporary protocol name used by integration tests to avoid clobbering the real registration."""
@@ -28,7 +28,7 @@ class TestRegisterProtocol:
             patch.object(winreg, 'CreateKey', return_value=mock_key) as mock_create,
             patch.object(winreg, 'SetValueEx'),
         ):
-            register_protocol(r'C:\Program Files\Synodic\synodic.exe')
+            register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
 
         # Should create the protocol key and command key
         assert mock_create.call_count == _EXPECTED_REGISTRY_KEY_COUNT
@@ -47,11 +47,11 @@ class TestRegisterProtocol:
         mock_key = make_registry_key()
 
         with patch.object(winreg, 'CreateKey', return_value=mock_key), patch.object(winreg, 'SetValueEx') as mock_set:
-            register_protocol(r'C:\Program Files\Synodic\synodic.exe')
+            register_protocol(r'C:\Program Files\Spurtle\spurtle.exe')
 
         # Check that SetValueEx was called with 'URL Protocol'
         url_protocol_calls = [c for c in mock_set.call_args_list if c[0][1] == 'URL Protocol']
-        assert len(url_protocol_calls) == 1
+        assert len(url_protocol_calls) == len(_registered_protocol_names())
 
     @staticmethod
     def test_noop_on_non_windows() -> None:
@@ -59,7 +59,7 @@ class TestRegisterProtocol:
         with patch('spurtle.protocol.sys') as mock_sys:
             mock_sys.platform = 'linux'
             # Should not raise and should not attempt winreg import
-            register_protocol('/usr/bin/synodic')
+            register_protocol('/usr/bin/spurtle')
 
 
 class TestRemoveProtocol:
@@ -71,10 +71,8 @@ class TestRemoveProtocol:
         with patch('spurtle.protocol._reg_delete_tree', return_value=0) as mock_delete:
             remove_protocol()
 
-        mock_delete.assert_called_once_with(
-            winreg.HKEY_CURRENT_USER,
-            f'Software\\Classes\\{PROTOCOL_NAME}',
-        )
+        assert mock_delete.call_count == len(_registered_protocol_names())
+        mock_delete.assert_any_call(winreg.HKEY_CURRENT_USER, f'Software\\Classes\\{PROTOCOL_NAME}')
 
     @staticmethod
     def test_handles_missing_key_gracefully() -> None:
@@ -97,7 +95,7 @@ class TestProtocolIntegration:
     @staticmethod
     def test_register_creates_valid_registry_entries() -> None:
         """Register under a test key, verify values, then clean up."""
-        test_exe = r'C:\test\synodic_test.exe'
+        test_exe = r'C:\test\spurtle_test.exe'
         key_path = f'Software\\Classes\\{_TEST_PROTOCOL}'
 
         try:
@@ -108,7 +106,7 @@ class TestProtocolIntegration:
             # Verify the protocol key
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
                 description, _ = winreg.QueryValueEx(key, '')
-                assert description == 'Synodic Client Protocol'
+                assert description == 'Spurtle Protocol'
 
                 url_protocol, _ = winreg.QueryValueEx(key, 'URL Protocol')
                 assert not url_protocol
@@ -131,7 +129,7 @@ class TestProtocolIntegration:
         key_path = f'Software\\Classes\\{_TEST_PROTOCOL}'
 
         with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
-            register_protocol(r'C:\test\synodic_test.exe')
+            register_protocol(r'C:\test\spurtle_test.exe')
             remove_protocol()
 
         with pytest.raises(FileNotFoundError):
@@ -141,8 +139,8 @@ class TestProtocolIntegration:
     def test_register_is_idempotent() -> None:
         """Calling register twice with a different exe updates the command."""
         key_path = f'Software\\Classes\\{_TEST_PROTOCOL}\\shell\\open\\command'
-        exe_v1 = r'C:\test\v1\synodic.exe'
-        exe_v2 = r'C:\test\v2\synodic.exe'
+        exe_v1 = r'C:\test\v1\spurtle.exe'
+        exe_v2 = r'C:\test\v2\spurtle.exe'
 
         try:
             with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
@@ -164,7 +162,7 @@ class TestProtocolLive:
 
     @staticmethod
     def test_protocol_is_registered() -> None:
-        """Verify that the synodic:// protocol handler is currently registered."""
+        """Verify that the spurtle:// protocol handler is currently registered."""
         key_path = f'Software\\Classes\\{PROTOCOL_NAME}'
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
@@ -180,9 +178,9 @@ class TestProtocolLive:
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
                 command, _ = winreg.QueryValueEx(key, '')
-                # Command format: "C:\...\synodic.exe" "%1"
+                # Command format: "C:\...\spurtle.exe" "%1"
                 exe_path = command.split('"')[1]
                 assert exe_path.endswith('.exe'), f'Expected .exe path, got: {exe_path}'
-                assert Path(exe_path).name in {'synodic.exe', 'python.exe'}, f'Unexpected exe: {exe_path}'
+                assert Path(exe_path).name in {'spurtle.exe', 'python.exe'}, f'Unexpected exe: {exe_path}'
         except FileNotFoundError:
             pytest.skip('Protocol handler not registered on this machine')

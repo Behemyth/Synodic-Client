@@ -16,8 +16,8 @@ on:
         type: string
 
 env:
-  VELOPACK_APP_ID: synodic
-  VELOPACK_APP_TITLE: Synodic Client
+  VELOPACK_APP_ID: spurtle
+  VELOPACK_APP_TITLE: Spurtle
 
 jobs:
   build-and-package:
@@ -27,13 +27,13 @@ jobs:
       matrix:
         include:
           - runner: windows-latest
-            main_exe: synodic.exe
+            main_exe: spurtle.exe
             platform: win
           - runner: ubuntu-latest
-            main_exe: synodic
+            main_exe: spurtle
             platform: linux
           - runner: macos-latest
-            main_exe: synodic
+            main_exe: spurtle
             platform: osx
     steps:
       - name: Checkout
@@ -81,7 +81,7 @@ jobs:
           vpk pack \
             --packId ${{ env.VELOPACK_APP_ID }} \
             --packVersion ${{ inputs.version }} \
-            --packDir dist/synodic \
+            --packDir dist/spurtle \
             --mainExe ${{ matrix.main_exe }} \
             --packTitle "${{ env.VELOPACK_APP_TITLE }}" \
             --channel ${{ inputs.channel }}-${{ matrix.platform }} \

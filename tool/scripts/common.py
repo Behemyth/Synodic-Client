@@ -8,11 +8,11 @@ from pathlib import Path
 # Paths relative to the repository root
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPEC_FILE = REPO_ROOT / 'tool' / 'pyinstaller' / 'synodic.spec'
-PACK_DIR = REPO_ROOT / 'dist' / 'synodic'
+PACK_DIR = REPO_ROOT / 'dist' / 'spurtle'
 OUTPUT_DIR = REPO_ROOT / 'Releases'
-MAIN_EXE = 'synodic.exe'
+MAIN_EXE = 'spurtle.exe'
 ICON_FILE = REPO_ROOT / 'data' / 'icon.ico'
-PACK_ID = 'synodic'
+PACK_ID = 'spurtle'
 
 
 def run(cmd: list[str], *, description: str) -> None:
@@ -34,7 +34,7 @@ def run(cmd: list[str], *, description: str) -> None:
 
 
 def kill_running_instances() -> None:
-    """Terminate any running synodic.exe processes to release locked files."""
+    """Terminate any running spurtle.exe processes to release locked files."""
     if sys.platform != 'win32':
         return
 
@@ -54,7 +54,7 @@ def kill_running_instances() -> None:
 
 
 def build() -> None:
-    """Run PyInstaller to produce dist/synodic/.
+    """Run PyInstaller to produce dist/spurtle/.
 
     Kills any running instances first, then invokes PyInstaller with the
     project spec file.

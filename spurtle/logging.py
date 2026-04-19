@@ -1,4 +1,4 @@
-"""Centralised logging configuration for the Synodic Client.
+"""Centralised logging configuration for the Spurtle.
 
 Provides a rotating file handler with eager flushing and runtime
 log-level switching via :func:`set_debug_level`.
@@ -11,8 +11,8 @@ from pathlib import Path
 
 from spurtle.config import config_dir, is_dev_mode
 
-_LOG_FILENAME = 'synodic.log'
-_LOG_FILENAME_DEV = 'synodic-dev.log'
+_LOG_FILENAME = 'spurtle.log'
+_LOG_FILENAME_DEV = 'spurtle-dev.log'
 _MAX_BYTES = 1_048_576  # 1 MB
 _BACKUP_COUNT = 3
 _FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'

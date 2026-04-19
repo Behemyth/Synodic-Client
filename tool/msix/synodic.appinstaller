@@ -11,13 +11,13 @@
 -->
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
-  Uri="{{BASE_URI}}/synodic.appinstaller"
+  Uri="{{BASE_URI}}/spurtle.appinstaller"
   Version="{{VERSION}}">
 
   <MainBundle
-    Name="synodic"
+    Name="spurtle"
     Version="{{VERSION}}"
-    Uri="{{BASE_URI}}/synodic.msix"
+    Uri="{{BASE_URI}}/spurtle.msix"
     Publisher="CN=Synodic" />
 
   <UpdateSettings>

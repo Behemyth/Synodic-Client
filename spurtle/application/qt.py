@@ -1,4 +1,4 @@
-"""GUI entry point for the Synodic Client application."""
+"""GUI entry point for the Spurtle application."""
 
 import asyncio
 import ctypes
@@ -67,7 +67,7 @@ def _process_uri(
     install_handler: Callable[[str], None],
     setup_handler: Callable[[str], None] | None = None,
 ) -> None:
-    """Parse a ``synodic://`` URI and dispatch actions."""
+    """Parse a ``spurtle://`` URI and dispatch actions."""
     parsed_data = parse_uri(uri)
     action = parsed_data.get('action')
     if action == 'install':
@@ -296,7 +296,7 @@ def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool =
     """Application entry point.
 
     Args:
-        uri: Optional ``synodic://`` URI to process on launch.
+        uri: Optional ``spurtle://`` URI to process on launch.
         dev_mode: When ``True``, activate dev-mode isolation so that
             the development instance does not share configuration,
             log files, or single-instance locks with the user-installed

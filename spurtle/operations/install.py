@@ -95,7 +95,7 @@ async def resolve_manifest_path(url: str) -> tuple[Path, str | None]:
             raise FileNotFoundError(msg)
         return local_path, None
 
-    temp_dir = tempfile.mkdtemp(prefix='synodic_install_')
+    temp_dir = tempfile.mkdtemp(prefix='spurtle_install_')
     dest = Path(temp_dir) / 'porringer.json'
 
     params = DownloadParameters(url=url, destination=dest, timeout=3)
@@ -132,7 +132,7 @@ async def resolve_profile(url: str) -> tuple[SetupProfile, str | None]:
 
     validate_profile_url(url)
 
-    temp_dir = tempfile.mkdtemp(prefix='synodic_profile_')
+    temp_dir = tempfile.mkdtemp(prefix='spurtle_profile_')
     dest = Path(temp_dir) / 'profile.json'
 
     params = DownloadParameters(url=url, destination=dest, timeout=3)
@@ -571,7 +571,7 @@ def _strip_post_sync(manifest_path: Path) -> Path:
         return manifest_path
 
     data['post_sync'] = []
-    fd, tmp_str = tempfile.mkstemp(prefix='synodic_nosync_', suffix='.json')
+    fd, tmp_str = tempfile.mkstemp(prefix='spurtle_nosync_', suffix='.json')
     tmp = Path(tmp_str)
     tmp.write_text(json.dumps(data), encoding='utf-8')
     os.close(fd)
@@ -591,7 +591,7 @@ def _extract_post_sync(manifest_path: Path) -> Path | None:
         return None
 
     minimal = {'version': data.get('version', '1'), 'post_sync': post_sync}
-    fd, tmp_str = tempfile.mkstemp(prefix='synodic_postsync_', suffix='.json')
+    fd, tmp_str = tempfile.mkstemp(prefix='spurtle_postsync_', suffix='.json')
     tmp = Path(tmp_str)
     tmp.write_text(json.dumps(minimal), encoding='utf-8')
     os.close(fd)

@@ -1,6 +1,6 @@
 # Self-Update System
 
-Synodic Client includes a self-update mechanism built on:
+Spurtle includes a self-update mechanism built on:
 
 - **[Velopack](https://velopack.io/)** - Cross-platform installer and auto-update framework
 - **GitHub Releases** - Distribution of update packages
@@ -80,8 +80,8 @@ Velopack packages are published to GitHub Releases with the following structure:
 
 | Platform | Files |
 |----------|-------|
-| Windows | `synodic-Setup.exe`, `synodic-{version}-full.nupkg` |
-| Linux | `synodic.AppImage` |
-| macOS | `synodic.app` (packaged) |
+| Windows | `spurtle-Setup.exe`, `spurtle-{version}-full.nupkg` |
+| Linux | `spurtle.AppImage` |
+| macOS | `spurtle.app` (packaged) |
 
 Velopack automatically manages `releases.{channel}.json` files for update discovery.

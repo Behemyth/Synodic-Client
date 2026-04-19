@@ -240,8 +240,8 @@ class TestCheckAppinstallerFeed:
     @staticmethod
     def test_parses_version_from_main_bundle(updater: Updater) -> None:
         xml_body = """<?xml version="1.0" encoding="utf-8"?>
-        <AppInstaller Uri="https://example.com/synodic.appinstaller" Version="2.1.0">
-          <MainBundle Name="synodic" Version="2.1.0" Uri="https://example.com/synodic.msixbundle" />
+                <AppInstaller Uri="https://example.com/spurtle.appinstaller" Version="2.1.0">
+                    <MainBundle Name="spurtle" Version="2.1.0" Uri="https://example.com/spurtle.msixbundle" />
         </AppInstaller>"""
 
         mock_resp = MagicMock()
@@ -258,7 +258,7 @@ class TestCheckAppinstallerFeed:
     def test_parses_version_fallback(updater: Updater) -> None:
         """Falls back to first Version attribute when no MainBundle."""
         xml_body = """<?xml version="1.0" encoding="utf-8"?>
-        <AppInstaller Uri="https://example.com/synodic.appinstaller" Version="3.0.0">
+        <AppInstaller Uri="https://example.com/spurtle.appinstaller" Version="3.0.0">
         </AppInstaller>"""
 
         mock_resp = MagicMock()
@@ -297,7 +297,7 @@ class TestCheckAppinstallerFeed:
             updater._check_appinstaller_feed()
 
         req = mock_urlopen.call_args[0][0]
-        assert req.full_url.endswith('/synodic.appinstaller')
+        assert req.full_url.endswith('/spurtle.appinstaller')
 
     @staticmethod
     def test_uses_direct_url_when_appinstaller(updater_with_config: Updater) -> None:

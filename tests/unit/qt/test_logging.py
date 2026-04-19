@@ -26,14 +26,14 @@ class TestLogPath:
     @staticmethod
     def test_filename() -> None:
         """log_path() should use the expected filename."""
-        assert log_path().name == 'synodic.log'
+        assert log_path().name == 'spurtle.log'
 
     @staticmethod
     def test_dev_mode_filename() -> None:
         """log_path() should use a dev-specific filename in dev mode."""
         set_dev_mode(True)
         try:
-            assert log_path().name == 'synodic-dev.log'
+            assert log_path().name == 'spurtle-dev.log'
         finally:
             set_dev_mode(False)
 
@@ -70,7 +70,7 @@ class TestConfigureLogging:
     @staticmethod
     def test_attaches_file_handler(tmp_path: Path) -> None:
         """configure_logging() should attach a file handler to the spurtle logger."""
-        with patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'):
+        with patch('spurtle.logging.log_path', return_value=tmp_path / 'spurtle.log'):
             app_logger = logging.getLogger('spurtle')
             initial_count = len(app_logger.handlers)
 
@@ -87,7 +87,7 @@ class TestConfigureLogging:
     @staticmethod
     def test_writes_to_file(tmp_path: Path) -> None:
         """Log records should be written eagerly to the log file."""
-        log_file = tmp_path / 'synodic.log'
+        log_file = tmp_path / 'spurtle.log'
         app_logger = logging.getLogger('spurtle')
 
         handler = EagerRotatingFileHandler(str(log_file), encoding='utf-8')
@@ -111,7 +111,7 @@ class TestOpenLog:
     @staticmethod
     def test_creates_file_if_missing(tmp_path: Path) -> None:
         """_open_log() should create the log file when it does not exist."""
-        log_file = tmp_path / 'synodic.log'
+        log_file = tmp_path / 'spurtle.log'
         assert not log_file.exists()
 
         with (
@@ -125,7 +125,7 @@ class TestOpenLog:
     @staticmethod
     def test_opens_existing_file(tmp_path: Path) -> None:
         """_open_log() should open an existing log file without error."""
-        log_file = tmp_path / 'synodic.log'
+        log_file = tmp_path / 'spurtle.log'
         log_file.write_text('existing content', encoding='utf-8')
 
         with (
@@ -152,7 +152,7 @@ class TestPorringerLogLevel:
                 h.close()
 
         with (
-            patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'),
+            patch('spurtle.logging.log_path', return_value=tmp_path / 'spurtle.log'),
             patch.object(sys, 'frozen', True, create=True),
         ):
             configure_logging()
@@ -188,7 +188,7 @@ class TestPorringerLogLevel:
             sys.__dict__.pop('frozen')
 
         try:
-            with patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'):
+            with patch('spurtle.logging.log_path', return_value=tmp_path / 'spurtle.log'):
                 configure_logging()
             assert porringer_logger.level == logging.INFO
         finally:

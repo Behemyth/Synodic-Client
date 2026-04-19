@@ -32,7 +32,7 @@ class TestSettingsWindowConstruction:
     def test_default_config() -> None:
         """Window title is set correctly."""
         window = _make_window()
-        assert window.windowTitle() == 'Synodic Settings'
+        assert window.windowTitle() == 'Spurtle Settings'
 
     @staticmethod
     def test_minimum_size() -> None:

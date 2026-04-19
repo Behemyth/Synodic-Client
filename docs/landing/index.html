@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Synodic Client</title>
+    <title>Spurtle</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -207,12 +207,12 @@
 
 <body>
     <div class="container">
-        <img src="../icon.png" alt="Synodic" class="logo" id="logo" />
-        <h1>Synodic Client</h1>
+        <img src="../icon.png" alt="Spurtle" class="logo" id="logo" />
+        <h1>Spurtle</h1>
 
         <!-- Phase 1: attempting protocol launch -->
         <div id="phase-launch">
-            <p class="subtitle" id="launch-message">Opening Synodic Client&hellip;</p>
+            <p class="subtitle" id="launch-message">Opening Spurtle&hellip;</p>
             <div class="spinner"></div>
         </div>
 
@@ -221,7 +221,7 @@
             <p class="subtitle">The app didn't open. You may need to install it first.</p>
 
             <div class="card">
-                <h2>Get Synodic Client</h2>
+                <h2>Get Spurtle</h2>
                 <p>Install via the Microsoft Store or download the latest MSIX package.</p>
                 <div class="actions">
                     <a id="download-link" class="btn btn-primary"
@@ -238,7 +238,7 @@
                 <h2>Already installed?</h2>
                 <div class="step">
                     <span class="step-number">1</span>
-                    <p>Open Synodic Client manually</p>
+                    <p>Open Spurtle manually</p>
                 </div>
                 <div class="step">
                     <span class="step-number">2</span>
@@ -254,13 +254,13 @@
             'use strict';
 
             var FALLBACK_DELAY = 2500;
-            var PROTOCOL = 'synodic://';
+            var PROTOCOL = 'spurtle://';
 
             /**
              * Parse the current page URL for the action and parameters.
              *
              * Supported URL formats:
-             *   ?uri=synodic://install?manifest=https://...
+             *   ?uri=spurtle://install?manifest=https://...
              *   ?action=install&manifest=https://...
              *   ?action=setup&profile=https://...
              */
@@ -298,7 +298,7 @@
             if (!uri) {
                 // No action specified — show a generic landing
                 document.getElementById('launch-message').textContent =
-                    'Welcome to Synodic Client';
+                    'Welcome to Spurtle';
                 document.querySelector('.spinner').style.display = 'none';
                 document.getElementById('phase-launch').style.display = 'none';
                 document.getElementById('phase-fallback').style.display = 'block';

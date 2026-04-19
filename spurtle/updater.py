@@ -120,7 +120,7 @@ class Updater:
         """
         feed_url = self._config.repo_url.rstrip('/')
         if not feed_url.endswith('.appinstaller'):
-            feed_url = f'{feed_url}/synodic.appinstaller'
+            feed_url = f'{feed_url}/spurtle.appinstaller'
 
         logger.debug('Checking appinstaller feed: %s', feed_url)
 

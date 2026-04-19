@@ -1,4 +1,4 @@
-# Synodic Client
+# Spurtle
 
 An application frontend for [porringer](https://www.github.com/synodic/porringer) that helps manage and download package managers and their dependents.
 
@@ -29,10 +29,10 @@ Launch the application:
 sprt
 ```
 
-Or with a `synodic://` URI:
+Or with a `spurtle://` URI:
 
 ```bash
-sprt "synodic://install?manifest=https://example.com/porringer.json"
+sprt "spurtle://install?manifest=https://example.com/porringer.json"
 ```
 
 Show the version:

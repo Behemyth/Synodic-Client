@@ -37,11 +37,12 @@ class TestRegisterStartup:
             patch.object(winreg, 'OpenKey', return_value=mock_key) as mock_open,
             patch.object(winreg, 'SetValueEx') as mock_set,
             patch.object(winreg, 'CreateKey', return_value=mock_key),
+            patch.object(winreg, 'DeleteValue'),
         ):
-            register_startup(r'C:\Program Files\Synodic\synodic.exe')
-        mock_open.assert_called_once_with(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE)
+            register_startup(r'C:\Program Files\Spurtle\spurtle.exe')
+        mock_open.assert_any_call(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE)
         mock_set.assert_any_call(
-            mock_key, STARTUP_VALUE_NAME, 0, winreg.REG_SZ, r'"C:\Program Files\Synodic\synodic.exe"'
+            mock_key, STARTUP_VALUE_NAME, 0, winreg.REG_SZ, r'"C:\Program Files\Spurtle\spurtle.exe"'
         )
 
     @staticmethod
@@ -52,8 +53,9 @@ class TestRegisterStartup:
             patch.object(winreg, 'OpenKey', return_value=mock_run_key),
             patch.object(winreg, 'SetValueEx') as mock_set,
             patch.object(winreg, 'CreateKey', return_value=mock_approved_key) as mock_create,
+            patch.object(winreg, 'DeleteValue'),
         ):
-            register_startup(r'C:\synodic.exe')
+            register_startup(r'C:\spurtle.exe')
         mock_create.assert_called_once_with(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH)
         mock_set.assert_any_call(mock_approved_key, STARTUP_VALUE_NAME, 0, winreg.REG_BINARY, APPROVED_ENABLED)
 
@@ -63,7 +65,7 @@ class TestRegisterStartup:
             patch(_MSIX_PATCH, return_value=True),
             patch.object(winreg, 'OpenKey') as mock_open,
         ):
-            register_startup(r'C:\synodic.exe')
+            register_startup(r'C:\spurtle.exe')
         mock_open.assert_not_called()
 
 
@@ -93,7 +95,7 @@ class TestRemoveStartup:
             patch.object(winreg, 'DeleteValue') as mock_delete,
         ):
             remove_startup()
-        assert mock_delete.call_count == 2
+        assert mock_delete.call_count == 4
         mock_delete.assert_any_call(mock_run_key, STARTUP_VALUE_NAME)
         mock_delete.assert_any_call(mock_approved_key, STARTUP_VALUE_NAME)
 

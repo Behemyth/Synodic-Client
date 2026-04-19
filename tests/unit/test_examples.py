@@ -8,17 +8,17 @@ from pathlib import Path
 
 from spurtle.application.uri import parse_uri
 
-_URI_PATTERN = re.compile(r'synodic://\S+')
+_URI_PATTERN = re.compile(r'spurtle://\S+')
 
 
 def _extract_uris_from_file(path: Path) -> list[str]:
-    """Extract all ``synodic://`` URIs from a text file."""
+    """Extract all ``spurtle://`` URIs from a text file."""
     text = path.read_text(encoding='utf-8')
     return _URI_PATTERN.findall(text)
 
 
 def _collect_uris(directory: Path) -> list[str]:
-    """Collect every ``synodic://`` URI found in any text file in *directory*."""
+    """Collect every ``spurtle://`` URI found in any text file in *directory*."""
     uris: list[str] = []
     for child in directory.iterdir():
         if child.is_file() and child.suffix in {'.md', '.toml', '.json', '.txt'}:
@@ -36,11 +36,11 @@ class TestExampleStructure:
 
 
 class TestExampleUris:
-    """Validate any ``synodic://`` URIs embedded in example files."""
+    """Validate any ``spurtle://`` URIs embedded in example files."""
 
     @staticmethod
     def test_embedded_uris_are_parseable(example_dir: Path) -> None:
-        """Every embedded synodic:// URI must be parseable by the client."""
+        """Every embedded spurtle:// URI must be parseable by the client."""
         uris = _collect_uris(example_dir)
 
         for uri in uris:

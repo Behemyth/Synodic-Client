@@ -1,4 +1,4 @@
-"""CLI entry point for the Synodic Client application.
+"""CLI entry point for the Spurtle application.
 
 Restructured as a package with resource-verb subcommands:
 
@@ -24,7 +24,7 @@ from spurtle.cli.update import update_app
 
 app = typer.Typer(
     name='sprt',
-    help='Synodic Client — a system tray frontend for porringer.',
+    help='Spurtle — a system tray frontend for porringer.',
     add_completion=False,
 )
 
@@ -42,7 +42,7 @@ def main(
     *,
     uri: Annotated[
         str | None,
-        typer.Option('--uri', help='A synodic:// URI to process on launch.'),
+        typer.Option('--uri', help='A spurtle:// URI to process on launch.'),
     ] = None,
     version: Annotated[
         bool | None,
@@ -57,7 +57,7 @@ def main(
         typer.Option('--debug', help='Enable DEBUG-level file logging for this session.'),
     ] = False,
 ) -> None:
-    """Launch the Synodic Client GUI application."""
+    """Launch the Spurtle GUI application."""
     if ctx.invoked_subcommand is not None:
         return
 

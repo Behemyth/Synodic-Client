@@ -18,7 +18,8 @@ import sys
 
 logger = logging.getLogger(__name__)
 
-STARTUP_VALUE_NAME = 'SynodicClient'
+STARTUP_VALUE_NAME = 'Spurtle'
+LEGACY_STARTUP_VALUE_NAMES = ('SynodicClient',)
 """Registry value name used in the ``Run`` key."""
 
 RUN_KEY_PATH = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -31,6 +32,13 @@ APPROVED_ENABLED: bytes = b'\x02' + b'\x00' * 11
 """Enabled payload for the ``StartupApproved\\Run`` registry value."""
 
 _APPROVED_DISABLED_BYTE: int = 0x03
+
+
+def _startup_value_names() -> tuple[str, ...]:
+    """Return the startup registry value names to manage for compatibility."""
+    if STARTUP_VALUE_NAME == 'Spurtle':
+        return (STARTUP_VALUE_NAME, *LEGACY_STARTUP_VALUE_NAMES)
+    return (STARTUP_VALUE_NAME,)
 
 
 def _is_msix() -> bool:
@@ -69,6 +77,18 @@ if sys.platform == 'win32':
         except OSError:
             logger.exception('Failed to write StartupApproved enabled flag')
 
+        for legacy_name in LEGACY_STARTUP_VALUE_NAMES:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, legacy_name)
+            except Exception:
+                pass
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, legacy_name)
+            except Exception:
+                pass
+
     def remove_startup() -> None:
         """Remove the auto-startup registration.
 
@@ -78,23 +98,24 @@ if sys.platform == 'win32':
             logger.debug('MSIX detected — skipping manual startup removal')
             return
 
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.DeleteValue(key, STARTUP_VALUE_NAME)
-            logger.info('Removed auto-startup registration')
-        except FileNotFoundError:
-            logger.debug('Auto-startup registration not found, nothing to remove')
-        except OSError:
-            logger.exception('Failed to remove auto-startup registration')
+        for value_name in _startup_value_names():
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, value_name)
+                logger.info('Removed auto-startup registration for %s', value_name)
+            except FileNotFoundError:
+                logger.debug('Auto-startup registration %s not found, nothing to remove', value_name)
+            except OSError:
+                logger.exception('Failed to remove auto-startup registration for %s', value_name)
 
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.DeleteValue(key, STARTUP_VALUE_NAME)
-            logger.debug('Removed StartupApproved flag')
-        except FileNotFoundError:
-            logger.debug('StartupApproved flag not found, nothing to remove')
-        except OSError:
-            logger.exception('Failed to remove StartupApproved flag')
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, value_name)
+                logger.debug('Removed StartupApproved flag for %s', value_name)
+            except FileNotFoundError:
+                logger.debug('StartupApproved flag %s not found, nothing to remove', value_name)
+            except OSError:
+                logger.exception('Failed to remove StartupApproved flag for %s', value_name)
 
     def get_registered_startup_path() -> str | None:
         r"""Return the executable path stored in the ``Run`` registry key.
@@ -106,8 +127,13 @@ if sys.platform == 'win32':
 
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_QUERY_VALUE) as key:
-                value, _ = winreg.QueryValueEx(key, STARTUP_VALUE_NAME)
-                return value.strip('"') if isinstance(value, str) else None
+                for value_name in _startup_value_names():
+                    try:
+                        value, _ = winreg.QueryValueEx(key, value_name)
+                        return value.strip('"') if isinstance(value, str) else None
+                    except FileNotFoundError:
+                        continue
+                return None
         except FileNotFoundError:
             return None
         except OSError:
@@ -125,7 +151,16 @@ if sys.platform == 'win32':
 
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_QUERY_VALUE) as key:
-                winreg.QueryValueEx(key, STARTUP_VALUE_NAME)
+                active_name = None
+                for value_name in _startup_value_names():
+                    try:
+                        winreg.QueryValueEx(key, value_name)
+                        active_name = value_name
+                        break
+                    except FileNotFoundError:
+                        continue
+                if active_name is None:
+                    return False
         except FileNotFoundError:
             return False
         except OSError:
@@ -134,7 +169,7 @@ if sys.platform == 'win32':
 
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_APPROVED_KEY_PATH, 0, winreg.KEY_QUERY_VALUE) as key:
-                data, _ = winreg.QueryValueEx(key, STARTUP_VALUE_NAME)
+                data, _ = winreg.QueryValueEx(key, active_name)
                 if isinstance(data, bytes) and len(data) >= 1 and data[0] == _APPROVED_DISABLED_BYTE:
                     logger.debug('Auto-startup is disabled via StartupApproved')
                     return False

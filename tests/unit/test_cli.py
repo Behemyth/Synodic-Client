@@ -57,7 +57,7 @@ class TestCli:
     @staticmethod
     def test_launches_application_with_uri() -> None:
         """Verify invoking with --uri passes it to application()."""
-        test_uri = 'synodic://install?manifest=https://example.com/foo.json'
+        test_uri = 'spurtle://install?manifest=https://example.com/foo.json'
         with patch('spurtle.application.qt.application') as mock_app:
             result = runner.invoke(app, ['--uri', test_uri])
             assert result.exit_code == 0

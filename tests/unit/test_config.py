@@ -115,7 +115,7 @@ class TestConfigDir:
         """Verify config dir uses LOCALAPPDATA on Windows."""
         with patch.dict('os.environ', {'LOCALAPPDATA': 'C:\\Users\\Test\\AppData\\Local'}):
             result = config_dir()
-        assert result == Path('C:\\Users\\Test\\AppData\\Local\\Synodic')
+        assert result == Path('C:\\Users\\Test\\AppData\\Local\\Spurtle')
 
     @staticmethod
     @pytest.mark.skipif(__import__('sys').platform != 'win32', reason='Windows only')
@@ -123,8 +123,8 @@ class TestConfigDir:
         """Verify fallback when LOCALAPPDATA is not set."""
         with patch.dict('os.environ', {'LOCALAPPDATA': ''}):
             result = config_dir()
-        # Should still produce a path ending in Synodic
-        assert result.name == 'Synodic'
+        # Should still produce a path ending in Spurtle
+        assert result.name == 'Spurtle'
 
     @staticmethod
     @pytest.mark.skipif(__import__('sys').platform != 'win32', reason='Windows only')
@@ -134,7 +134,7 @@ class TestConfigDir:
         try:
             with patch.dict('os.environ', {'LOCALAPPDATA': 'C:\\Users\\Test\\AppData\\Local'}):
                 result = config_dir()
-            assert result == Path('C:\\Users\\Test\\AppData\\Local\\Synodic-Dev')
+            assert result == Path('C:\\Users\\Test\\AppData\\Local\\Spurtle-Dev')
         finally:
             set_dev_mode(False)
 

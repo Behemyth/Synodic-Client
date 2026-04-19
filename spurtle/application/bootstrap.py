@@ -28,7 +28,7 @@ def bootstrap() -> None:
         # Last-resort crash log when imports fail before logging is configured.
         import os
 
-        _fallback = os.path.join(os.environ.get('LOCALAPPDATA', '.'), 'Synodic', 'logs', 'bootstrap-crash.log')
+        _fallback = os.path.join(os.environ.get('LOCALAPPDATA', '.'), 'Spurtle', 'logs', 'bootstrap-crash.log')
         os.makedirs(os.path.dirname(_fallback), exist_ok=True)
         with open(_fallback, 'a', encoding='utf-8') as _f:
             _f.write(traceback.format_exc())

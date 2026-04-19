@@ -1,4 +1,4 @@
-"""Persistent configuration for the Synodic Client.
+"""Persistent configuration for the Spurtle.
 
 Two configuration layers are supported:
 
@@ -7,7 +7,7 @@ Two configuration layers are supported:
   Contains only ``update_source`` and ``update_channel``.
 
 - **UserConfig** — a user-scoped ``config.json`` in the OS application
-  data directory.  On Windows this is ``%LOCALAPPDATA%/Synodic/config.json``.
+    data directory.  On Windows this is ``%LOCALAPPDATA%/Spurtle/config.json``.
   Persisted by the Settings UI.  Always contains every field.
 
 Resolution of these layers into an immutable ``ResolvedConfig`` is handled
@@ -24,8 +24,10 @@ from spurtle.schema import BuildConfig, UserConfig
 
 logger = logging.getLogger(__name__)
 
-_APP_NAME = 'Synodic'
-_APP_NAME_DEV = 'Synodic-Dev'
+_APP_NAME = 'Spurtle'
+_APP_NAME_DEV = 'Spurtle-Dev'
+_LEGACY_APP_NAME = 'Synodic'
+_LEGACY_APP_NAME_DEV = 'Synodic-Dev'
 _CONFIG_FILENAME = 'config.json'
 
 
@@ -87,18 +89,8 @@ def load_build_config() -> BuildConfig | None:
         return None
 
 
-def config_dir() -> Path:
-    """Return the platform-appropriate global configuration directory.
-
-    When dev-mode is active (see :func:`set_dev_mode`) the returned path
-    is namespaced (e.g. ``Synodic-Dev``) so that development and
-    user-installed builds maintain independent configuration.
-
-    Returns:
-        Path to the configuration directory.
-    """
-    app_name = _APP_NAME_DEV if _DevMode.enabled else _APP_NAME
-
+def _config_dir_for(app_name: str) -> Path:
+    """Return the platform-appropriate configuration directory for *app_name*."""
     if sys.platform == 'win32':
         base = os.environ.get('LOCALAPPDATA', '')
         if not base:
@@ -109,30 +101,58 @@ def config_dir() -> Path:
     return Path.home() / f'.{app_name.lower()}'
 
 
+def config_dir() -> Path:
+    """Return the platform-appropriate global configuration directory.
+
+    When dev-mode is active (see :func:`set_dev_mode`) the returned path
+    is namespaced (e.g. ``Spurtle-Dev``) so that development and
+    user-installed builds maintain independent configuration.
+
+    Returns:
+        Path to the configuration directory.
+    """
+    app_name = _APP_NAME_DEV if _DevMode.enabled else _APP_NAME
+    return _config_dir_for(app_name)
+
+
+def _legacy_config_dir() -> Path:
+    """Return the legacy configuration directory used before the rebrand."""
+    app_name = _LEGACY_APP_NAME_DEV if _DevMode.enabled else _LEGACY_APP_NAME
+    return _config_dir_for(app_name)
+
+
 def load_user_config() -> UserConfig:
     """Load the user configuration from the OS data directory.
 
     Returns:
         The loaded or default user configuration.
     """
-    path = config_dir() / _CONFIG_FILENAME
-    if not path.exists():
-        logger.debug('No user config at %s, using defaults', path)
-        return UserConfig()
+    primary_path = config_dir() / _CONFIG_FILENAME
+    candidate_paths = [primary_path]
+    legacy_path = _legacy_config_dir() / _CONFIG_FILENAME
+    if legacy_path != primary_path:
+        candidate_paths.append(legacy_path)
 
-    try:
-        data = json.loads(path.read_text(encoding='utf-8'))
-    except json.JSONDecodeError, OSError:
-        logger.exception('Failed to read config from %s, using defaults', path)
-        return UserConfig()
+    for path in candidate_paths:
+        if not path.exists():
+            continue
 
-    try:
-        config = UserConfig.model_validate(data)
-        logger.debug('Loaded user config from %s', path)
-        return config
-    except Exception:
-        logger.exception('Failed to validate user config from %s, using defaults', path)
-        return UserConfig()
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+        except (json.JSONDecodeError, OSError):
+            logger.exception('Failed to read config from %s, using defaults', path)
+            return UserConfig()
+
+        try:
+            config = UserConfig.model_validate(data)
+            logger.debug('Loaded user config from %s', path)
+            return config
+        except Exception:
+            logger.exception('Failed to validate user config from %s, using defaults', path)
+            return UserConfig()
+
+    logger.debug('No user config at %s or legacy paths, using defaults', primary_path)
+    return UserConfig()
 
 
 def save_user_config(config: UserConfig) -> None:

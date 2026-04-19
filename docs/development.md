@@ -19,8 +19,8 @@ We use [PDM](https://pdm-project.org/en/latest/) as our build system and package
 
 The `--dev` flag isolates the development instance from production:
 
-- **Config dir:** `%LOCALAPPDATA%\Synodic-Dev\` (instead of `Synodic\`)
-- **Log file:** `synodic-dev.log` (instead of `synodic.log`)
+- **Config dir:** `%LOCALAPPDATA%\Spurtle-Dev\` (instead of `Spurtle\`)
+- **Log file:** `spurtle-dev.log` (instead of `spurtle.log`)
 - **Instance lock:** Separate named socket — dev and production can run side-by-side.
 - **Velopack + protocol registration:** Skipped in dev mode.
 
@@ -115,7 +115,7 @@ SingleInstance.send_debug_command(cmd)
 |--------|-------|
 | Server name | `spurtle` (production) / `spurtle-dev` (dev mode) |
 | Backing | Windows named pipe (`\\.\pipe\…`), Unix domain socket elsewhere |
-| Protocol | `debug:` prefix → synchronous JSON response; all other payloads treated as `synodic://` URIs (fire-and-forget) |
+| Protocol | `debug:` prefix → synchronous JSON response; all other payloads treated as `spurtle://` URIs (fire-and-forget) |
 
 ### Wiring
 
