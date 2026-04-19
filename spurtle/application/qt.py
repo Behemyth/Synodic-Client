@@ -1,0 +1,397 @@
+"""GUI entry point for the Synodic Client application."""
+
+import asyncio
+import ctypes
+import importlib.metadata
+import logging
+import os
+import signal
+import sys
+import traceback
+import types
+from collections.abc import Callable
+
+import qasync
+from porringer.api import API
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+
+from spurtle.application.config_store import ConfigStore
+from spurtle.application.debug import DebugHandler, DebugServices
+from spurtle.application.icon import app_icon
+from spurtle.application.init import run_startup_preamble
+from spurtle.application.instance import SingleInstance
+from spurtle.application.screen.install import InstallPreviewWindow
+from spurtle.application.screen.screen import Screen
+from spurtle.application.screen.tray import TrayScreen
+from spurtle.application.uri import parse_uri
+from spurtle.client import Client
+from spurtle.config import set_dev_mode
+from spurtle.logging import configure_logging, log_path, set_debug_level
+from spurtle.operations.bootstrap import init_services
+from spurtle.protocol import extract_uri_from_args
+from spurtle.resolution import ResolvedConfig
+from spurtle.subprocess_patch import apply as _apply_subprocess_patch
+
+
+def _init_services(logger: logging.Logger) -> tuple[Client, API, ResolvedConfig]:
+    """Create and configure core services.
+
+    Delegates to :func:`~spurtle.operations.bootstrap.init_services`
+    and adds GUI-specific debug logging.
+
+    Returns:
+        A (Client, porringer API, resolved config) tuple.
+    """
+    client, porringer, config = init_services()
+
+    logger.debug(
+        'Resolved config: update_source=%s update_channel=%s auto_update=%dm tool_update=%dm '
+        'auto_apply=%s auto_start=%s debug_logging=%s prerelease_packages=%s plugin_auto_update=%s',
+        config.update_source,
+        config.update_channel,
+        config.auto_update_interval_minutes,
+        config.tool_update_interval_minutes,
+        config.auto_apply,
+        config.auto_start,
+        config.debug_logging,
+        config.prerelease_packages,
+        config.plugin_auto_update,
+    )
+
+    return client, porringer, config
+
+
+def _process_uri(
+    uri: str,
+    install_handler: Callable[[str], None],
+    setup_handler: Callable[[str], None] | None = None,
+) -> None:
+    """Parse a ``synodic://`` URI and dispatch actions."""
+    parsed_data = parse_uri(uri)
+    action = parsed_data.get('action')
+    if action == 'install':
+        manifests = parsed_data.get('manifest')
+        if isinstance(manifests, list) and manifests:
+            install_handler(manifests[0])
+    elif action == 'setup' and setup_handler is not None:
+        profiles = parsed_data.get('profile')
+        if isinstance(profiles, list) and profiles:
+            setup_handler(profiles[0])
+
+
+_SHUTDOWN_TIMEOUT: float = 3.0
+
+
+async def _async_shutdown(
+    loop: asyncio.AbstractEventLoop,
+    *,
+    timeout: float = _SHUTDOWN_TIMEOUT,
+) -> None:
+    """Cancel remaining async tasks and wait for cleanup to finish.
+
+    Runs after the Qt event loop exits.  Tasks blocked in
+    ``run_in_executor`` threads (network / subprocess I/O) cannot be
+    interrupted, so if any are still alive after *timeout* seconds
+    the process is force-exited via ``os._exit(0)`` to avoid blocking
+    on non-daemon thread joins during interpreter shutdown.
+    """
+    _logger = logging.getLogger(__name__)
+    current = asyncio.current_task()
+    pending = [t for t in asyncio.all_tasks(loop) if t is not current and not t.done()]
+    if not pending:
+        return
+
+    _logger.info('Cancelling %d pending async task(s)', len(pending))
+    for task in pending:
+        task.cancel()
+
+    _, still_pending = await asyncio.wait(pending, timeout=timeout)
+    if still_pending:
+        _logger.warning(
+            '%d task(s) did not finish within %.1fs — forcing exit',
+            len(still_pending),
+            timeout,
+        )
+        os._exit(0)
+
+
+def _install_exception_hook(logger: logging.Logger) -> None:
+    """Redirect unhandled exceptions to the log file.
+
+    Ensures tracebacks are visible even in windowed (``console=False``)
+    PyInstaller builds.
+    """
+    _original_excepthook = sys.excepthook
+
+    def _exception_hook(
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        logger.critical('Unhandled exception', exc_info=(exc_type, exc_value, exc_tb))
+        _original_excepthook(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _exception_hook
+
+
+class _TopLevelShowFilter(QObject):
+    """[DIAG] Application-wide event filter that logs Show/WindowActivate on top-level widgets."""
+
+    _diag_logger = logging.getLogger('spurtle.diag.window')
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if (
+            event.type() in {QEvent.Type.Show, QEvent.Type.WindowActivate}
+            and isinstance(obj, QWidget)
+            and obj.isWindow()
+        ):
+            geo = obj.geometry()
+            stack = ''.join(traceback.format_stack(limit=12))
+            self._diag_logger.debug(
+                '[DIAG] Top-level window %s: class=%s title=%r geo=(%d,%d %dx%d) visible=%s\n%s',
+                event.type().name,
+                type(obj).__qualname__,
+                obj.windowTitle(),
+                geo.x(),
+                geo.y(),
+                geo.width(),
+                geo.height(),
+                obj.isVisible(),
+                stack,
+            )
+        return False
+
+
+def _init_app() -> QApplication:
+    """Create and configure the ``QApplication``."""
+    # Set the App User Model ID so Windows uses our icon on the taskbar
+    # instead of the generic python.exe icon.
+    if sys.platform == 'win32':
+        windll = getattr(ctypes, 'windll', None)
+        if windll is not None:
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID('synodic.client')
+
+    app = QApplication([])
+    app.setQuitOnLastWindowClosed(False)
+    app.setWindowIcon(app_icon())
+    app.setAttribute(Qt.ApplicationAttribute.AA_CompressHighFrequencyEvents)
+
+    # Install the diagnostic event filter only when debug-level logging is
+    # active — it calls traceback.format_stack() on every top-level Show
+    # event, which is measurable overhead in normal operation.
+    if logging.getLogger('spurtle').isEnabledFor(logging.DEBUG):
+        diag_filter = _TopLevelShowFilter(app)  # parented to app, prevented from GC
+        app.installEventFilter(diag_filter)
+
+    # Allow Ctrl+C in the terminal to terminate the application.
+    # Qt's event loop blocks Python's default SIGINT handling, so we
+    # install our own handler and use a short timer to let Python
+    # process it between Qt events.
+    signal.signal(signal.SIGINT, lambda *_args: app.quit())
+    _signal_timer = QTimer(app)
+    _signal_timer.start(500)
+    _signal_timer.timeout.connect(lambda: None)
+
+    return app
+
+
+def _configure_startup(
+    logger: logging.Logger,
+    *,
+    uri: str | None,
+    dev_mode: bool,
+    debug: bool,
+) -> None:
+    """Run the early startup sequence: logging banner, URI log."""
+    logger.info('Log file: %s', log_path())
+    logger.info(
+        'Environment: Python %s | PySide6 %s | porringer %s | platform=%s | frozen=%s',
+        sys.version.split()[0],
+        importlib.metadata.version('PySide6'),
+        importlib.metadata.version('porringer'),
+        sys.platform,
+        getattr(sys, 'frozen', False),
+    )
+
+    _install_exception_hook(logger)
+
+    if not dev_mode:
+        # Idempotent — safe to call even when bootstrap.py has already
+        # executed the preamble before heavy imports.
+        run_startup_preamble(sys.executable)
+
+    if uri:
+        logger.info('Received URI: %s', uri)
+
+    if not debug and logging.getLogger('spurtle').level > logging.DEBUG:
+        # Will be re-evaluated after config is loaded; this is just the banner.
+        pass
+
+
+def _create_uri_handlers(
+    porringer: API,
+    store: ConfigStore,
+    screen: Screen,
+    logger: logging.Logger,
+) -> tuple[Callable[[str], None], Callable[[str], None], list[InstallPreviewWindow]]:
+    """Build the install and setup URI handler callbacks.
+
+    Returns:
+        ``(handle_install, handle_setup, install_windows)`` where the
+        list keeps :class:`InstallPreviewWindow` references alive.
+    """
+    install_windows: list[InstallPreviewWindow] = []
+
+    def _handle_install_uri(manifest_url: str) -> None:
+        result = QMessageBox.question(
+            None,
+            'Install Request',
+            f'A link wants to install from:\n\n{manifest_url}\n\nAllow?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            logger.info('User denied install URI: %s', manifest_url)
+            return
+        logger.info('Opening install preview for: %s', manifest_url)
+        window = InstallPreviewWindow(
+            porringer,
+            manifest_url,
+            config=store.config,
+        )
+        install_windows.append(window)
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        window.start()
+
+    def _handle_setup_uri(profile_url: str) -> None:
+        from spurtle.operations.install import validate_profile_url
+
+        try:
+            validate_profile_url(profile_url)
+        except ValueError:
+            logger.warning('Rejected non-HTTPS setup URI: %s', profile_url)
+            return
+
+        result = QMessageBox.question(
+            None,
+            'Setup Profile Request',
+            f'A link wants to add a setup profile from:\n\n{profile_url}\n\nAllow?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            logger.info('User denied setup URI: %s', profile_url)
+            return
+
+        logger.info('Adding setup profile from URI: %s', profile_url)
+        screen.window.navigate_to_setup(profile_url)
+
+    return _handle_install_uri, _handle_setup_uri, install_windows
+
+
+def application(*, uri: str | None = None, dev_mode: bool = False, debug: bool = False) -> None:
+    """Application entry point.
+
+    Args:
+        uri: Optional ``synodic://`` URI to process on launch.
+        dev_mode: When ``True``, activate dev-mode isolation so that
+            the development instance does not share configuration,
+            log files, or single-instance locks with the user-installed
+            application.  Velopack initialisation and protocol
+            registration are skipped.
+        debug: When ``True``, enable DEBUG-level file logging.
+    """
+    # Activate dev-mode namespacing before anything reads config paths.
+    set_dev_mode(dev_mode)
+    _apply_subprocess_patch()
+
+    # Configure logging before Velopack so install/uninstall hooks and
+    # first-run diagnostics are captured in the log file.
+    configure_logging(debug=debug)
+    logger = logging.getLogger('spurtle')
+
+    _configure_startup(logger, uri=uri, dev_mode=dev_mode, debug=debug)
+
+    client, porringer, config = _init_services(logger)
+
+    # Honour the persisted debug_logging preference unless the --debug
+    # flag already activated it.
+    if not debug and config.debug_logging:
+        set_debug_level(enabled=True)
+
+    app = _init_app()
+
+    loop = qasync.QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    instance = SingleInstance(app)
+    if instance.try_send_to_existing(uri or ''):
+        logger.info('Another instance is already running, exiting')
+        sys.exit(0)
+    instance.start_server()
+
+    _store = ConfigStore(config)
+    _screen = Screen(porringer, _store)
+    _tray = TrayScreen(app, client, _screen.window, store=_store)
+
+    _handle_install_uri, _handle_setup_uri, _install_windows = _create_uri_handlers(
+        porringer,
+        _store,
+        _screen,
+        logger,
+    )
+
+    _debug_handler = DebugHandler(
+        DebugServices(
+            client=client,
+            porringer=porringer,
+            coordinator=_screen.window.coordinator,
+            config_store=_store,
+            update_controller=_tray.update_controller,
+            update_model=_tray.update_model,
+            tool_orchestrator=_tray.tool_orchestrator,
+            main_window=_screen.window,
+            settings_window=_tray.settings_window,
+        )
+    )
+    instance.set_debug_handler(_debug_handler.handle)
+
+    instance.uri_received.connect(
+        lambda received_uri: _process_uri(received_uri, _handle_install_uri, _handle_setup_uri)
+    )
+
+    if uri:
+        _process_uri(uri, _handle_install_uri, _handle_setup_uri)
+
+    # --- Graceful shutdown ---
+    # aboutToQuit fires while the Qt event loop is still running —
+    # stop timers and issue task cancellations here.  The actual await
+    # of those cancellations runs after run_forever() returns (see
+    # _async_shutdown below).
+
+    def _on_about_to_quit() -> None:
+        logger.info('Application shutting down')
+        _tray.shutdown()
+
+    app.aboutToQuit.connect(_on_about_to_quit)
+
+    # qasync integrates the asyncio event loop with Qt's event loop,
+    # enabling async/await usage in the GUI layer without dedicated threads.
+    with loop:
+        loop.run_forever()
+        # The Qt event loop has exited.  Give cancelled tasks a window
+        # to handle CancelledError, run finally blocks, and release
+        # resources.  If any tasks are stuck in executor threads,
+        # _async_shutdown force-exits after the timeout.
+        try:
+            loop.run_until_complete(_async_shutdown(loop))
+        except Exception:
+            logger.exception('Async shutdown failed — forcing exit')
+            os._exit(0)
+
+
+if __name__ == '__main__':
+    application(uri=extract_uri_from_args())

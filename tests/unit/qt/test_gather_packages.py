@@ -12,16 +12,16 @@ from porringer.schema import ManifestDirectory
 from porringer.schema.plugin import PluginInfo, PluginKind, RuntimePackageResult
 from PySide6.QtWidgets import QLabel, QPushButton
 
-from synodic_client.application.screen.plugin_row import (
+from spurtle.application.screen.plugin_row import (
     FilterChip,
     PluginKindHeader,
     PluginProviderHeader,
     PluginRow,
     ProjectChildRow,
 )
-from synodic_client.application.screen.schema import PackageEntry, PluginRowData, ProjectInstance, RefreshData
-from synodic_client.application.screen.screen import ToolsView
-from synodic_client.application.theme import (
+from spurtle.application.screen.schema import PackageEntry, PluginRowData, ProjectInstance, RefreshData
+from spurtle.application.screen.screen import ToolsView
+from spurtle.application.theme import (
     FILTER_TOGGLE_ACTIVE_STYLE,
     FILTER_TOGGLE_STYLE,
     PLUGIN_PROVIDER_RUNTIME_TAG_DEFAULT_STYLE,

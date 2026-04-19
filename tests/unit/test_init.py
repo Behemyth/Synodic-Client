@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import synodic_client.application.init as init_mod
-from synodic_client.application.init import run_startup_preamble
+import spurtle.application.init as init_mod
+from spurtle.application.init import run_startup_preamble
 
-_MODULE = 'synodic_client.application.init'
+_MODULE = 'spurtle.application.init'
 
 
 @pytest.fixture(autouse=True)

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from synodic_client.application.screen.schema import PreviewPhase
-from synodic_client.application.screen.sidebar import ManifestItem, ManifestSidebar
-from synodic_client.application.theme import SIDEBAR_WIDTH
+from spurtle.application.screen.schema import PreviewPhase
+from spurtle.application.screen.sidebar import ManifestItem, ManifestSidebar
+from spurtle.application.theme import SIDEBAR_WIDTH
 
 _EXPECTED_DIRECTORY_COUNT = 2
 

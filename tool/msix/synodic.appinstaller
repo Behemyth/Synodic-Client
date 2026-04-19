@@ -4,7 +4,7 @@
 
   CI should replace the placeholder tokens before publishing:
     {{VERSION}}  — e.g. 1.2.3.0    (four-part MSIX version)
-    {{BASE_URI}} — e.g. https://synodic.github.io/synodic-client/releases
+    {{BASE_URI}} — e.g. https://synodic.github.io/spurtle/releases
 
   Place the generated .appinstaller file alongside the .msix at the BASE_URI.
   Windows will check for updates automatically based on the policy below.

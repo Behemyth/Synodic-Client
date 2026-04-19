@@ -6,7 +6,7 @@ These validate client-level invariants — not porringer manifest semantics.
 import re
 from pathlib import Path
 
-from synodic_client.application.uri import parse_uri
+from spurtle.application.uri import parse_uri
 
 _URI_PATTERN = re.compile(r'synodic://\S+')
 

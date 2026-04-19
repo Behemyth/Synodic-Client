@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from synodic_client.application.screen.schema import ActionState, PreviewModel, PreviewPhase
-from synodic_client.application.uri import normalize_manifest_key
-from synodic_client.operations.schema import InstallPlan, SyncStrategy
+from spurtle.application.screen.schema import ActionState, PreviewModel, PreviewPhase
+from spurtle.application.uri import normalize_manifest_key
+from spurtle.operations.schema import InstallPlan, SyncStrategy
 
 from .conftest import make_action
 

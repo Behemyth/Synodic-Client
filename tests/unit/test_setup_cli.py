@@ -11,14 +11,14 @@ pytest.importorskip('PySide6.QtWidgets', reason='PySide6 requires system Qt libr
 
 from typer.testing import CliRunner
 
-from synodic_client.cli import app
-from synodic_client.schema import ResolvedConfig
+from spurtle.cli import app
+from spurtle.schema import ResolvedConfig
 
 runner = CliRunner()
 
 
 def _make_config(**overrides: object) -> ResolvedConfig:
-    from synodic_client.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
+    from spurtle.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
 
     defaults: dict[str, object] = {
         'update_source': None,
@@ -44,13 +44,13 @@ def _make_config(**overrides: object) -> ResolvedConfig:
 
 
 class TestSetupList:
-    """Tests for ``synodic-c setup list``."""
+    """Tests for ``sprt setup list``."""
 
     @staticmethod
     def test_empty() -> None:
         """No profiles prints a message."""
         config = _make_config(setup_profiles=[])
-        with patch('synodic_client.cli.context.get_services', return_value=(None, MagicMock(), config)):
+        with patch('spurtle.cli.context.get_services', return_value=(None, MagicMock(), config)):
             result = runner.invoke(app, ['setup', 'list'])
             assert result.exit_code == 0
             assert 'No setup profiles' in result.output
@@ -59,7 +59,7 @@ class TestSetupList:
     def test_lists_urls() -> None:
         """Configured profiles are printed one per line."""
         config = _make_config(setup_profiles=['https://a.com/p.json', 'https://b.com/p.json'])
-        with patch('synodic_client.cli.context.get_services', return_value=(None, MagicMock(), config)):
+        with patch('spurtle.cli.context.get_services', return_value=(None, MagicMock(), config)):
             result = runner.invoke(app, ['setup', 'list'])
             assert result.exit_code == 0
             assert 'https://a.com/p.json' in result.output
@@ -72,7 +72,7 @@ class TestSetupList:
 
 
 class TestSetupAdd:
-    """Tests for ``synodic-c setup add``."""
+    """Tests for ``sprt setup add``."""
 
     @staticmethod
     def test_rejects_http() -> None:
@@ -86,8 +86,8 @@ class TestSetupAdd:
         mock_user = MagicMock()
         mock_user.setup_profiles = []
         with (
-            patch('synodic_client.config.load_user_config', return_value=mock_user),
-            patch('synodic_client.resolution.update_user_config') as mock_update,
+            patch('spurtle.config.load_user_config', return_value=mock_user),
+            patch('spurtle.resolution.update_user_config') as mock_update,
         ):
             result = runner.invoke(app, ['setup', 'add', 'https://example.com/p.json'])
             assert result.exit_code == 0
@@ -100,8 +100,8 @@ class TestSetupAdd:
         mock_user = MagicMock()
         mock_user.setup_profiles = ['https://example.com/p.json']
         with (
-            patch('synodic_client.config.load_user_config', return_value=mock_user),
-            patch('synodic_client.resolution.update_user_config') as mock_update,
+            patch('spurtle.config.load_user_config', return_value=mock_user),
+            patch('spurtle.resolution.update_user_config') as mock_update,
         ):
             result = runner.invoke(app, ['setup', 'add', 'https://example.com/p.json'])
             assert result.exit_code == 0
@@ -115,7 +115,7 @@ class TestSetupAdd:
 
 
 class TestSetupRemove:
-    """Tests for ``synodic-c setup remove``."""
+    """Tests for ``sprt setup remove``."""
 
     @staticmethod
     def test_removes_url() -> None:
@@ -123,8 +123,8 @@ class TestSetupRemove:
         mock_user = MagicMock()
         mock_user.setup_profiles = ['https://example.com/p.json']
         with (
-            patch('synodic_client.config.load_user_config', return_value=mock_user),
-            patch('synodic_client.resolution.update_user_config') as mock_update,
+            patch('spurtle.config.load_user_config', return_value=mock_user),
+            patch('spurtle.resolution.update_user_config') as mock_update,
         ):
             result = runner.invoke(app, ['setup', 'remove', 'https://example.com/p.json'])
             assert result.exit_code == 0
@@ -136,7 +136,7 @@ class TestSetupRemove:
         """Removing a URL that isn't in the config exits with code 1."""
         mock_user = MagicMock()
         mock_user.setup_profiles = []
-        with patch('synodic_client.config.load_user_config', return_value=mock_user):
+        with patch('spurtle.config.load_user_config', return_value=mock_user):
             result = runner.invoke(app, ['setup', 'remove', 'https://example.com/missing.json'])
             assert result.exit_code == 1
             assert 'not found' in result.output
@@ -148,7 +148,7 @@ class TestSetupRemove:
 
 
 class TestSetupRun:
-    """Tests for ``synodic-c setup run``."""
+    """Tests for ``sprt setup run``."""
 
     @staticmethod
     def test_rejects_http() -> None:

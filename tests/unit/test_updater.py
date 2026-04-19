@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from packaging.version import Version
 
-from synodic_client.schema import GITHUB_REPO_URL, UpdateChannel, UpdateConfig, UpdateInfo, UpdateState
-from synodic_client.updater import Updater
+from spurtle.schema import GITHUB_REPO_URL, UpdateChannel, UpdateConfig, UpdateInfo, UpdateState
+from spurtle.updater import Updater
 
-_MODULE = 'synodic_client.updater'
+_MODULE = 'spurtle.updater'
 
 
 @pytest.fixture
@@ -249,7 +249,7 @@ class TestCheckAppinstallerFeed:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch('synodic_client.updater.urllib.request.urlopen', return_value=mock_resp):
+        with patch('spurtle.updater.urllib.request.urlopen', return_value=mock_resp):
             version = updater._check_appinstaller_feed()
 
         assert version == Version('2.1.0')
@@ -266,7 +266,7 @@ class TestCheckAppinstallerFeed:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch('synodic_client.updater.urllib.request.urlopen', return_value=mock_resp):
+        with patch('spurtle.updater.urllib.request.urlopen', return_value=mock_resp):
             version = updater._check_appinstaller_feed()
 
         assert version == Version('3.0.0')
@@ -280,7 +280,7 @@ class TestCheckAppinstallerFeed:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch('synodic_client.updater.urllib.request.urlopen', return_value=mock_resp):
+        with patch('spurtle.updater.urllib.request.urlopen', return_value=mock_resp):
             version = updater._check_appinstaller_feed()
 
         assert version is None
@@ -293,7 +293,7 @@ class TestCheckAppinstallerFeed:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch('synodic_client.updater.urllib.request.urlopen', return_value=mock_resp) as mock_urlopen:
+        with patch('spurtle.updater.urllib.request.urlopen', return_value=mock_resp) as mock_urlopen:
             updater._check_appinstaller_feed()
 
         req = mock_urlopen.call_args[0][0]
@@ -311,7 +311,7 @@ class TestCheckAppinstallerFeed:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch('synodic_client.updater.urllib.request.urlopen', return_value=mock_resp) as mock_urlopen:
+        with patch('spurtle.updater.urllib.request.urlopen', return_value=mock_resp) as mock_urlopen:
             updater_with_config._check_appinstaller_feed()
 
         req = mock_urlopen.call_args[0][0]

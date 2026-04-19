@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip('PySide6.QtWidgets', reason='PySide6 requires system Qt libraries')
 
-from synodic_client.application.qt import _process_uri
+from spurtle.application.qt import _process_uri
 
 
 class TestProcessUriSetup:

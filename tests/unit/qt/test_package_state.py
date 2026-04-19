@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from synodic_client.application.package_state import PackageStateStore
+from spurtle.application.package_state import PackageStateStore
 
 
 class TestRecordUpdatesCompleted:

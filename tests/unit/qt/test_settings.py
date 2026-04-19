@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from synodic_client.application.screen.settings import SettingsWindow
-from synodic_client.application.theme import SETTINGS_WINDOW_MIN_SIZE
-from synodic_client.application.update_model import UpdateModel
-from synodic_client.resolution import ResolvedConfig
-from synodic_client.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
+from spurtle.application.screen.settings import SettingsWindow
+from spurtle.application.theme import SETTINGS_WINDOW_MIN_SIZE
+from spurtle.application.update_model import UpdateModel
+from spurtle.resolution import ResolvedConfig
+from spurtle.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
 
 from .conftest import make_config_store, make_resolved_config
 
@@ -120,7 +120,7 @@ class TestSyncFromConfig:
     def test_auto_start_reflects_registry() -> None:
         """Auto-start checkbox mirrors the OS registration state."""
         window = _make_window(make_resolved_config())
-        with patch('synodic_client.application.screen.settings.is_startup_registered', return_value=True):
+        with patch('spurtle.application.screen.settings.is_startup_registered', return_value=True):
             window.sync_from_config()
         assert window._auto_start_check.isChecked() is True
 
@@ -217,8 +217,8 @@ class TestSettingsCallbacks:
         new_config = make_resolved_config(auto_start=True)
         with (
             patch.object(window._store, 'update', return_value=new_config),
-            patch('synodic_client.application.screen.settings.sync_startup') as mock_sync,
-            patch('synodic_client.application.screen.settings.is_startup_registered', return_value=False),
+            patch('spurtle.application.screen.settings.sync_startup') as mock_sync,
+            patch('spurtle.application.screen.settings.is_startup_registered', return_value=False),
         ):
             window._auto_start_check.setChecked(True)
 
@@ -237,7 +237,7 @@ class TestSettingsCallbacks:
         new_config = make_resolved_config(auto_start=False)
         with (
             patch.object(window._store, 'update', return_value=new_config),
-            patch('synodic_client.application.screen.settings.sync_startup') as mock_sync,
+            patch('spurtle.application.screen.settings.sync_startup') as mock_sync,
         ):
             window._auto_start_check.setChecked(False)
 
@@ -252,8 +252,8 @@ class TestSettingsCallbacks:
         new_config = make_resolved_config(auto_start=True)
         with (
             patch.object(window._store, 'update', return_value=new_config),
-            patch('synodic_client.application.screen.settings.sync_startup') as mock_sync,
-            patch('synodic_client.application.screen.settings.is_startup_registered', return_value=False),
+            patch('spurtle.application.screen.settings.sync_startup') as mock_sync,
+            patch('spurtle.application.screen.settings.is_startup_registered', return_value=False),
         ):
             window._auto_start_check.setChecked(True)
 

@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 # Generated version file (created by pdm build)
-synodic_client/_version.py
+spurtle/_version.py
 
 # C extensions
 *.so
@@ -35,7 +35,7 @@ MANIFEST
 *.manifest
 *.spec
 # Exception: track our custom spec file
-!tool/pyinstaller/synodic.spec
+!tool/pyinstaller/spurtle.spec
 
 # Installer logs
 pip-log.txt

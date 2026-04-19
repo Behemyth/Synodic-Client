@@ -9,13 +9,13 @@ from unittest.mock import MagicMock
 
 from porringer.schema import ProgressEvent, SetupParameters
 
-from synodic_client.operations.install import (
+from spurtle.operations.install import (
     execute_install,
     execute_post_sync,
     load_manifest_actions,
     preview_manifest,
 )
-from synodic_client.operations.schema import ActionInfo, PreviewResult
+from spurtle.operations.schema import ActionInfo, PreviewResult
 
 # ---------------------------------------------------------------------------
 # Helpers

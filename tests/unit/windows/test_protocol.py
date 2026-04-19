@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from synodic_client.protocol import PROTOCOL_NAME, register_protocol, remove_protocol
+from spurtle.protocol import PROTOCOL_NAME, register_protocol, remove_protocol
 
 from .conftest import make_registry_key
 
@@ -56,7 +56,7 @@ class TestRegisterProtocol:
     @staticmethod
     def test_noop_on_non_windows() -> None:
         """Verify register_protocol is a no-op on non-Windows platforms."""
-        with patch('synodic_client.protocol.sys') as mock_sys:
+        with patch('spurtle.protocol.sys') as mock_sys:
             mock_sys.platform = 'linux'
             # Should not raise and should not attempt winreg import
             register_protocol('/usr/bin/synodic')
@@ -68,7 +68,7 @@ class TestRemoveProtocol:
     @staticmethod
     def test_deletes_registry_key() -> None:
         """Verify the protocol key is deleted."""
-        with patch('synodic_client.protocol._reg_delete_tree', return_value=0) as mock_delete:
+        with patch('spurtle.protocol._reg_delete_tree', return_value=0) as mock_delete:
             remove_protocol()
 
         mock_delete.assert_called_once_with(
@@ -79,14 +79,14 @@ class TestRemoveProtocol:
     @staticmethod
     def test_handles_missing_key_gracefully() -> None:
         """Verify no error when protocol key doesn't exist."""
-        with patch('synodic_client.protocol._reg_delete_tree', return_value=2):  # ERROR_FILE_NOT_FOUND
+        with patch('spurtle.protocol._reg_delete_tree', return_value=2):  # ERROR_FILE_NOT_FOUND
             # Should not raise
             remove_protocol()
 
     @staticmethod
     def test_noop_on_non_windows() -> None:
         """Verify remove_protocol is a no-op on non-Windows platforms."""
-        with patch('synodic_client.protocol.sys') as mock_sys:
+        with patch('spurtle.protocol.sys') as mock_sys:
             mock_sys.platform = 'linux'
             remove_protocol()
 
@@ -102,7 +102,7 @@ class TestProtocolIntegration:
 
         try:
             # Register using the test protocol name
-            with patch('synodic_client.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
+            with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
                 register_protocol(test_exe)
 
             # Verify the protocol key
@@ -122,7 +122,7 @@ class TestProtocolIntegration:
 
         finally:
             # Clean up the test key
-            with patch('synodic_client.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
+            with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
                 remove_protocol()
 
     @staticmethod
@@ -130,7 +130,7 @@ class TestProtocolIntegration:
         """Register then remove under a test key, verify the key is gone."""
         key_path = f'Software\\Classes\\{_TEST_PROTOCOL}'
 
-        with patch('synodic_client.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
+        with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
             register_protocol(r'C:\test\synodic_test.exe')
             remove_protocol()
 
@@ -145,7 +145,7 @@ class TestProtocolIntegration:
         exe_v2 = r'C:\test\v2\synodic.exe'
 
         try:
-            with patch('synodic_client.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
+            with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
                 register_protocol(exe_v1)
                 register_protocol(exe_v2)
 
@@ -155,7 +155,7 @@ class TestProtocolIntegration:
                 assert exe_v1 not in command
 
         finally:
-            with patch('synodic_client.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
+            with patch('spurtle.protocol.PROTOCOL_NAME', _TEST_PROTOCOL):
                 remove_protocol()
 
 

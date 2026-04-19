@@ -4,7 +4,7 @@ An application frontend for [porringer](https://www.github.com/synodic/porringer
 
 ## Documentation
 
-See the [full documentation](https://synodic.github.io/synodic-client) for installation, usage, and development guides.
+See the [full documentation](https://synodic.github.io/spurtle) for installation, usage, and development guides.
 
 ## Development
 

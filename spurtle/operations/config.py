@@ -1,0 +1,111 @@
+"""Configuration operations.
+
+Pure functions for reading, writing, and introspecting configuration.
+No Qt, no signals — works with the resolution module directly.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+
+from spurtle.operations.schema import ConfigKeyInfo
+from spurtle.resolution import resolve_config, update_user_config
+from spurtle.schema import ResolvedConfig
+
+_VALID_KEYS: frozenset[str] = frozenset(f.name for f in dataclasses.fields(ResolvedConfig))
+
+
+def _validate_key(key: str) -> None:
+    """Raise :class:`KeyError` if *key* is not a recognised config field."""
+    if key not in _VALID_KEYS:
+        msg = f'Unknown config key: {key!r}. Valid keys: {sorted(_VALID_KEYS)}'
+        raise KeyError(msg)
+
+
+def get_config() -> ResolvedConfig:
+    """Load and return the current resolved configuration.
+
+    Returns:
+        An immutable :class:`ResolvedConfig` snapshot.
+    """
+    return resolve_config()
+
+
+def get_config_value(key: str) -> object:
+    """Read a single configuration key.
+
+    Args:
+        key: The :class:`ResolvedConfig` field name.
+
+    Returns:
+        The current value of the field.
+
+    Raises:
+        KeyError: If *key* is not a recognised config field.
+    """
+    _validate_key(key)
+
+    config = resolve_config()
+    return getattr(config, key)
+
+
+def set_config(key: str, value: object) -> ResolvedConfig:
+    """Update a single configuration key and return the new config.
+
+    Args:
+        key: The :class:`UserConfig` field name.
+        value: The new value.
+
+    Returns:
+        The updated :class:`ResolvedConfig`.
+
+    Raises:
+        KeyError: If *key* is not a recognised config field.
+    """
+    _validate_key(key)
+
+    return update_user_config(**{key: value})
+
+
+def update_config(**changes: object) -> ResolvedConfig:
+    """Persist multiple configuration changes and return the new config.
+
+    Each key is validated against :class:`ResolvedConfig` fields before
+    writing.  This is the batch equivalent of :func:`set_config`.
+
+    Args:
+        **changes: Field-name / value pairs.
+
+    Returns:
+        The updated :class:`ResolvedConfig`.
+
+    Raises:
+        KeyError: If any key is not a recognised config field.
+    """
+    for key in changes:
+        _validate_key(key)
+    return update_user_config(**changes)
+
+
+def list_config_keys(config: ResolvedConfig | None = None) -> dict[str, ConfigKeyInfo]:
+    """Return metadata for every configuration key.
+
+    Args:
+        config: Optional resolved config to read current values from.
+            If ``None``, a fresh config is loaded.
+
+    Returns:
+        A dict mapping field name → :class:`ConfigKeyInfo`.
+    """
+    if config is None:
+        config = resolve_config()
+
+    result: dict[str, ConfigKeyInfo] = {}
+    for f in dataclasses.fields(ResolvedConfig):
+        result[f.name] = ConfigKeyInfo(
+            name=f.name,
+            type_hint=str(f.type),
+            description='',
+            current_value=getattr(config, f.name),
+        )
+    return result

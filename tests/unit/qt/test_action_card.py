@@ -10,13 +10,13 @@ from porringer.schema.plugin import PluginKind
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from synodic_client.application.screen import is_version_specifier
-from synodic_client.application.screen.action_card import (
+from spurtle.application.screen import is_version_specifier
+from spurtle.application.screen.action_card import (
     ActionCard,
     ActionCardList,
     action_sort_key,
 )
-from synodic_client.application.theme import (
+from spurtle.application.theme import (
     ACTION_CARD_EXECUTING_STYLE,
     ACTION_CARD_SKELETON_STYLE,
     ACTION_CARD_STATUS_DONE,
@@ -29,7 +29,7 @@ from synodic_client.application.theme import (
     ACTION_CARD_STATUS_UPDATE,
     ACTION_CARD_STYLE,
 )
-from synodic_client.operations.schema import resolve_action_status
+from spurtle.operations.schema import resolve_action_status
 
 from .conftest import make_action, make_result
 

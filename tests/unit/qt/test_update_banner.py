@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from synodic_client.application.screen.update_banner import UpdateBanner, UpdateBannerState
+from spurtle.application.screen.update_banner import UpdateBanner, UpdateBannerState
 
 _PROGRESS_MAX = 100
 _TEST_PROGRESS = 42

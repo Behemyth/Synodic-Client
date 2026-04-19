@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from synodic_client.operations.config import get_config, list_config_keys, set_config, update_config
-from synodic_client.operations.schema import ConfigKeyInfo
+from spurtle.operations.config import get_config, list_config_keys, set_config, update_config
+from spurtle.operations.schema import ConfigKeyInfo
 
 
 class TestGetConfig:
@@ -15,7 +15,7 @@ class TestGetConfig:
     @staticmethod
     def test_returns_resolved_config() -> None:
         """get_config returns the result of resolve_config()."""
-        with patch('synodic_client.operations.config.resolve_config') as mock:
+        with patch('spurtle.operations.config.resolve_config') as mock:
             sentinel = object()
             mock.return_value = sentinel
             assert get_config() is sentinel
@@ -33,11 +33,11 @@ class TestSetConfig:
     @staticmethod
     def test_delegates_to_update_user_config() -> None:
         """Calls update_user_config with the correct kwargs."""
-        with patch('synodic_client.operations.config.update_user_config') as mock:
+        with patch('spurtle.operations.config.update_user_config') as mock:
             mock_config = object()
             mock.return_value = mock_config
             # Use a known field from ResolvedConfig
-            from synodic_client.schema import ResolvedConfig
+            from spurtle.schema import ResolvedConfig
 
             field_names = [f.name for f in dataclasses.fields(ResolvedConfig)]
             if field_names:
@@ -53,9 +53,9 @@ class TestListConfigKeys:
     @staticmethod
     def test_returns_all_fields() -> None:
         """Returns a ConfigKeyInfo entry for each ResolvedConfig field."""
-        from synodic_client.schema import ResolvedConfig
+        from spurtle.schema import ResolvedConfig
 
-        with patch('synodic_client.operations.config.resolve_config') as mock:
+        with patch('spurtle.operations.config.resolve_config') as mock:
             mock.return_value = ResolvedConfig(
                 update_source=None,
                 update_channel='stable',
@@ -89,10 +89,10 @@ class TestUpdateConfig:
     @staticmethod
     def test_delegates_to_update_user_config() -> None:
         """Calls update_user_config with all provided kwargs."""
-        with patch('synodic_client.operations.config.update_user_config') as mock:
+        with patch('spurtle.operations.config.update_user_config') as mock:
             mock_config = object()
             mock.return_value = mock_config
-            from synodic_client.schema import ResolvedConfig
+            from spurtle.schema import ResolvedConfig
 
             field_names = [f.name for f in dataclasses.fields(ResolvedConfig)]
             min_fields = 2
@@ -105,7 +105,7 @@ class TestUpdateConfig:
     @staticmethod
     def test_validates_all_keys_before_writing() -> None:
         """All keys are validated — one bad key rejects the whole batch."""
-        from synodic_client.schema import ResolvedConfig
+        from spurtle.schema import ResolvedConfig
 
         field_names = [f.name for f in dataclasses.fields(ResolvedConfig)]
         if field_names:

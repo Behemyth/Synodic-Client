@@ -18,7 +18,7 @@ from typing import Annotated
 
 import typer
 
-from synodic_client import __version__
+from spurtle import __version__
 from tool.scripts.common import ICON_FILE, MAIN_EXE, OUTPUT_DIR, PACK_DIR, PACK_ID, build, kill_running_instances, run
 
 app = typer.Typer(help='Package Synodic Client with PyInstaller and MSIX.')

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from packaging.version import Version
 
-from synodic_client.client import Client
-from synodic_client.schema import UpdateConfig, UpdateInfo
+from spurtle.client import Client
+from spurtle.schema import UpdateConfig, UpdateInfo
 
 
 @pytest.fixture

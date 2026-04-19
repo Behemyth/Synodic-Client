@@ -24,9 +24,9 @@ from porringer.schema import SetupAction, SetupActionResult, SkipReason
 from porringer.schema.plugin import PluginKind
 from PySide6.QtWidgets import QApplication
 
-from synodic_client.application.config_store import ConfigStore
-from synodic_client.resolution import ResolvedConfig
-from synodic_client.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
+from spurtle.application.config_store import ConfigStore
+from spurtle.resolution import ResolvedConfig
+from spurtle.schema import DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES, DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES
 
 # Single shared QApplication for all Qt tests in this directory.
 _app = QApplication.instance() or QApplication(sys.argv)

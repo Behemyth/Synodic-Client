@@ -2,7 +2,7 @@
 [project]
 description = ""
 license = { text = "LGPL-3.0-or-later" }
-name = "synodic_client"
+name = "spurtle"
 
 authors = [{ name = "Synodic Software", email = "contact@synodic.software" }]
 readme = "README.md"
@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/synodic/synodic-client"
-repository = "https://github.com/synodic/synodic-client"
+homepage = "https://github.com/synodic/spurtle"
+repository = "https://github.com/synodic/spurtle"
 
 [dependency-groups]
 build = ["pyinstaller>=6.19.0"]
@@ -29,10 +29,10 @@ lint = ["ruff>=0.15.10", "pyrefly>=0.60.2"]
 test = ["pytest>=9.0.3", "pytest-cov>=7.1.0", "pytest-mock>=3.15.1"]
 
 [project.scripts]
-synodic-c = "synodic_client.cli:app"
+sprt = "spurtle.cli:app"
 
 [project.gui-scripts]
-synodic-client = "synodic_client.application.qt:application"
+spurtle = "spurtle.application.qt:application"
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -78,13 +78,13 @@ allow-prereleases = true
 
 [tool.pdm.scripts]
 analyze = "ruff check"
-dev = "synodic-c --dev"
+dev = "spurtle --dev"
 format = "ruff format"
 lint = { composite = ["analyze", "format", "type-check"] }
 package = { call = "tool.scripts.package:main" }
 version = { call = "tool.scripts.version:main" }
 post_install = { call = "tool.scripts.setup_dev:main" }
-test = "pytest --cov=synodic_client --verbose tests"
+test = "pytest --cov=spurtle --verbose tests"
 type-check = "pyrefly check"
 serve = "zensical serve"
 

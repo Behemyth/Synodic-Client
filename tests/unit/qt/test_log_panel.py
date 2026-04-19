@@ -16,15 +16,15 @@ from porringer.schema import (
     SubActionProgressEvent,
 )
 
-from synodic_client.application.screen.install_workers import run_install
-from synodic_client.application.screen.log_panel import (
+from spurtle.application.screen.install_workers import run_install
+from spurtle.application.screen.log_panel import (
     CHEVRON_DOWN,
     CHEVRON_RIGHT,
     ActionLogSection,
     ExecutionLogPanel,
 )
-from synodic_client.application.screen.schema import InstallCallbacks
-from synodic_client.application.theme import (
+from spurtle.application.screen.schema import InstallCallbacks
+from spurtle.application.theme import (
     LOG_COLOR_ERROR,
     LOG_COLOR_PHASE,
     LOG_COLOR_STDERR,

@@ -8,7 +8,7 @@ Usage examples:
     pdm run python -m tool.scripts.version
 """
 
-from synodic_client import __version__
+from spurtle import __version__
 
 
 def main() -> None:

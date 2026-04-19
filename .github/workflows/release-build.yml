@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   get-version:
-    if: github.repository == 'synodic/synodic-client' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    if: github.repository == 'synodic/spurtle' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}

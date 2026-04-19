@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from synodic_client.operations.project import add_project, list_projects, remove_project
-from synodic_client.operations.schema import ProjectInfo
+from spurtle.operations.project import add_project, list_projects, remove_project
+from spurtle.operations.schema import ProjectInfo
 
 
 def _make_dir_result(path: str, *, exists: bool = True, has_manifest: bool = False) -> MagicMock:

@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PySide6.QtWidgets import QSystemTrayIcon
 
-from synodic_client.application.screen.schema import UpdateTarget
-from synodic_client.application.screen.tray import TrayScreen
-from synodic_client.operations.schema import UpdateResult
+from spurtle.application.screen.schema import UpdateTarget
+from spurtle.application.screen.tray import TrayScreen
+from spurtle.operations.schema import UpdateResult
 
 from .conftest import make_config_store
 
@@ -18,8 +18,8 @@ from .conftest import make_config_store
 def tray_screen():
     """Build a minimal ``TrayScreen`` with mocked collaborators."""
     with (
-        patch('synodic_client.application.screen.tool_update_controller.resolve_update_config') as mock_ucfg,
-        patch('synodic_client.application.screen.tray.UpdateController'),
+        patch('spurtle.application.screen.tool_update_controller.resolve_update_config') as mock_ucfg,
+        patch('spurtle.application.screen.tray.UpdateController'),
     ):
         # Disable timers by setting intervals to 0
         mock_ucfg.return_value = MagicMock(
@@ -31,7 +31,7 @@ def tray_screen():
         client = MagicMock()
         window = MagicMock()
         store = make_config_store()
-        with patch('synodic_client.application.screen.tray.SettingsWindow'):
+        with patch('spurtle.application.screen.tray.SettingsWindow'):
             ts = TrayScreen(app, client, window, store=store)
 
         return ts

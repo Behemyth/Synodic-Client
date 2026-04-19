@@ -21,23 +21,23 @@ from porringer.schema import (
 )
 from porringer.schema.plugin import PluginKind
 
-from synodic_client.application.screen import (
+from spurtle.application.screen import (
     ACTION_KIND_LABELS,
     SKIP_REASON_LABELS,
     format_cli_command,
     skip_reason_label,
 )
-from synodic_client.application.screen.install_workers import run_install, run_preview
-from synodic_client.application.screen.schema import InstallConfig, PreviewConfig
-from synodic_client.application.uri import normalize_manifest_key, resolve_local_path
-from synodic_client.operations.schema import (
+from spurtle.application.screen.install_workers import run_install, run_preview
+from spurtle.application.screen.schema import InstallConfig, PreviewConfig
+from spurtle.application.uri import normalize_manifest_key, resolve_local_path
+from spurtle.operations.schema import (
     PreviewActionChecked,
     PreviewManifestParsed,
     PreviewPluginsQueried,
     PreviewReady,
 )
 
-_DOWNLOAD_PATCH = 'synodic_client.application.screen.install_workers.API.download'
+_DOWNLOAD_PATCH = 'spurtle.application.screen.install_workers.API.download'
 _EXPECTED_CHECKED_COUNT = 2
 
 

@@ -12,13 +12,13 @@ An application frontend for [porringer](https://www.github.com/synodic/porringer
 ## Installation
 
 ```bash
-pip install synodic-client
+pip install spurtle
 ```
 
 Or with PDM:
 
 ```bash
-pdm add synodic-client
+pdm add spurtle
 ```
 
 ## Quick Start
@@ -26,19 +26,19 @@ pdm add synodic-client
 Launch the application:
 
 ```bash
-synodic-c
+sprt
 ```
 
 Or with a `synodic://` URI:
 
 ```bash
-synodic-c "synodic://install?manifest=https://example.com/porringer.json"
+sprt "synodic://install?manifest=https://example.com/porringer.json"
 ```
 
 Show the version:
 
 ```bash
-synodic-c --version
+sprt --version
 ```
 
 The application runs in the system tray. Right-click the tray icon to access:

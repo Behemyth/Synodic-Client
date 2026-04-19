@@ -1,0 +1,89 @@
+"""Configuration commands.
+
+sprt config get <key>
+sprt config set <key> <value>
+sprt config list
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+import typer
+
+from spurtle.cli.output import render
+
+config_app = typer.Typer(
+    help='Read and write Synodic Client configuration.',
+    add_completion=False,
+)
+
+
+@config_app.command('get')
+def config_get(
+    key: Annotated[
+        str,
+        typer.Argument(help='Configuration key to read.'),
+    ],
+    *,
+    json_output: Annotated[
+        bool,
+        typer.Option('--json', help='Output as JSON.'),
+    ] = False,
+) -> None:
+    """Print the current value of a config key."""
+    from spurtle.operations.config import get_config_value
+
+    try:
+        value = get_config_value(key)
+    except KeyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
+
+    render({key: value}, as_json=json_output)
+
+
+@config_app.command('set')
+def config_set(
+    key: Annotated[
+        str,
+        typer.Argument(help='Configuration key to update.'),
+    ],
+    value: Annotated[
+        str,
+        typer.Argument(help='New value for the key.'),
+    ],
+    *,
+    json_output: Annotated[
+        bool,
+        typer.Option('--json', help='Output as JSON.'),
+    ] = False,
+) -> None:
+    """Update a single configuration key."""
+    from spurtle.operations.config import set_config
+
+    try:
+        updated = set_config(key, value)
+    except KeyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    render(updated, as_json=json_output)
+
+
+@config_app.command('list')
+def config_list(
+    *,
+    json_output: Annotated[
+        bool,
+        typer.Option('--json', help='Output as JSON.'),
+    ] = False,
+) -> None:
+    """List all configuration keys and their current values."""
+    from spurtle.operations.config import list_config_keys
+
+    keys = list_config_keys()
+    if json_output:
+        render(keys, as_json=True)
+    else:
+        for name, info in keys.items():
+            typer.echo(f'{name} = {info.current_value!r}  ({info.type_hint})')

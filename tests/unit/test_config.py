@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from synodic_client.config import (
+from spurtle.config import (
     BuildConfig,
     UserConfig,
     config_dir,
@@ -147,7 +147,7 @@ class TestSaveUserConfig:
         """Verify config is saved to disk."""
         config = UserConfig(update_source='/my/releases', update_channel='stable')
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             save_user_config(config)
 
         saved_path = tmp_path / 'config.json'
@@ -162,7 +162,7 @@ class TestSaveUserConfig:
         """Verify save_user_config writes all fields (no sparse serialization)."""
         config = UserConfig(update_channel='dev')
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             save_user_config(config)
 
         data = json.loads((tmp_path / 'config.json').read_text(encoding='utf-8'))
@@ -177,7 +177,7 @@ class TestSaveUserConfig:
         nested = tmp_path / 'nested' / 'dir'
         config = UserConfig()
 
-        with patch('synodic_client.config.config_dir', return_value=nested):
+        with patch('spurtle.config.config_dir', return_value=nested):
             save_user_config(config)
 
         assert (nested / 'config.json').exists()
@@ -190,7 +190,7 @@ class TestSaveUserConfig:
 
         config = UserConfig(update_source='http://new-source')
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             save_user_config(config)
 
         data = json.loads(config_path.read_text(encoding='utf-8'))
@@ -201,7 +201,7 @@ class TestSaveUserConfig:
         """Verify saved config can be loaded back identically."""
         original = UserConfig(update_channel='dev', auto_start=False)
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             save_user_config(original)
 
         data = json.loads((tmp_path / 'config.json').read_text(encoding='utf-8'))
@@ -291,7 +291,7 @@ class TestLoadUserConfigRecovery:
         }
         (tmp_path / 'config.json').write_text(json.dumps(config_data), encoding='utf-8')
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             config = load_user_config()
 
         assert config.update_channel == 'dev'
@@ -303,7 +303,7 @@ class TestLoadUserConfigRecovery:
         """Completely invalid JSON returns a default UserConfig."""
         (tmp_path / 'config.json').write_text('{{not valid json', encoding='utf-8')
 
-        with patch('synodic_client.config.config_dir', return_value=tmp_path):
+        with patch('spurtle.config.config_dir', return_value=tmp_path):
             config = load_user_config()
 
         assert config == UserConfig()

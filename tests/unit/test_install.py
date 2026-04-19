@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 from packaging.version import Version
-
-from synodic_client.client import Client
+from spurtle.client import Client
 
 
 class TestInstall:
@@ -27,7 +26,7 @@ class TestInstall:
     def test_package() -> None:
         """Verify that the proper package is selected"""
         client = Client()
-        assert client.package == 'synodic_client'
+        assert client.package == 'spurtle'
 
     @staticmethod
     def test_entrypoints() -> None:
@@ -36,7 +35,7 @@ class TestInstall:
         On Linux CI without graphics libraries, PySide6 imports fail.
         This test verifies entrypoints exist and are importable where possible.
         """
-        entries = entry_points(name='synodic-client')
+        entries = entry_points(name='spurtle')
         assert len(list(entries)) > 0, 'No entrypoints found'
 
         for entry in entries:

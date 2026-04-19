@@ -4,15 +4,15 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from synodic_client.operations.tool import resolve_auto_update_scope
-from synodic_client.resolution import (
+from spurtle.operations.tool import resolve_auto_update_scope
+from spurtle.resolution import (
     ResolvedConfig,
     resolve_config,
     resolve_update_config,
     seed_user_config_from_build,
     update_user_config,
 )
-from synodic_client.schema import (
+from spurtle.schema import (
     DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
     DEFAULT_TOOL_UPDATE_INTERVAL_MINUTES,
     GITHUB_REPO_URL,
@@ -57,8 +57,8 @@ class TestSeedUserConfigFromBuild:
     def test_no_build_config_is_noop(tmp_path: Path) -> None:
         """Verify nothing happens when there is no build config."""
         with (
-            patch('synodic_client.resolution.load_build_config', return_value=None),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_build_config', return_value=None),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             seed_user_config_from_build()
         mock_save.assert_not_called()
@@ -70,9 +70,9 @@ class TestSeedUserConfigFromBuild:
         user = UserConfig()  # all defaults
 
         with (
-            patch('synodic_client.resolution.load_build_config', return_value=build),
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_build_config', return_value=build),
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             seed_user_config_from_build()
 
@@ -88,9 +88,9 @@ class TestSeedUserConfigFromBuild:
         user = UserConfig(update_source='/user-source', update_channel='stable')
 
         with (
-            patch('synodic_client.resolution.load_build_config', return_value=build),
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_build_config', return_value=build),
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             seed_user_config_from_build()
 
@@ -104,9 +104,9 @@ class TestSeedUserConfigFromBuild:
         user = UserConfig(update_channel='stable')  # channel set, source not
 
         with (
-            patch('synodic_client.resolution.load_build_config', return_value=build),
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_build_config', return_value=build),
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             seed_user_config_from_build()
 
@@ -127,7 +127,7 @@ class TestResolveConfig:
     @staticmethod
     def test_returns_defaults_when_no_files(tmp_path: Path) -> None:
         """Verify defaults when no config files exist."""
-        with patch('synodic_client.resolution.load_user_config', return_value=UserConfig()):
+        with patch('spurtle.resolution.load_user_config', return_value=UserConfig()):
             config = resolve_config()
 
         assert isinstance(config, ResolvedConfig)
@@ -139,7 +139,7 @@ class TestResolveConfig:
         """Verify user config values are reflected in resolved config."""
         user = UserConfig(update_source='https://example.com/releases', update_channel='dev')
 
-        with patch('synodic_client.resolution.load_user_config', return_value=user):
+        with patch('spurtle.resolution.load_user_config', return_value=user):
             config = resolve_config()
 
         assert config.update_source == 'https://example.com/releases'
@@ -151,8 +151,8 @@ class TestResolveConfig:
         user = UserConfig()  # update_channel is None
 
         with (
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.sys') as mock_sys,
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.sys') as mock_sys,
         ):
             del mock_sys.frozen  # Not frozen → dev
             config = resolve_config()
@@ -164,7 +164,7 @@ class TestResolveConfig:
         """Verify None intervals resolve to module defaults."""
         user = UserConfig()
 
-        with patch('synodic_client.resolution.load_user_config', return_value=user):
+        with patch('spurtle.resolution.load_user_config', return_value=user):
             config = resolve_config()
 
         assert config.auto_update_interval_minutes == DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES
@@ -175,7 +175,7 @@ class TestResolveConfig:
         """Verify None auto_start resolves to True."""
         user = UserConfig()
 
-        with patch('synodic_client.resolution.load_user_config', return_value=user):
+        with patch('spurtle.resolution.load_user_config', return_value=user):
             config = resolve_config()
 
         assert config.auto_start is True
@@ -195,8 +195,8 @@ class TestUpdateUserConfig:
         user = UserConfig(update_channel='stable')
 
         with (
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             result = update_user_config(update_channel='dev')
 
@@ -210,8 +210,8 @@ class TestUpdateUserConfig:
         user = UserConfig(update_channel='stable')
 
         with (
-            patch('synodic_client.resolution.load_user_config', return_value=user),
-            patch('synodic_client.resolution.save_user_config') as mock_save,
+            patch('spurtle.resolution.load_user_config', return_value=user),
+            patch('spurtle.resolution.save_user_config') as mock_save,
         ):
             update_user_config(update_channel='dev')
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from synodic_client.startup import (
+from spurtle.startup import (
     APPROVED_ENABLED,
     RUN_KEY_PATH,
     STARTUP_APPROVED_KEY_PATH,
@@ -19,7 +19,7 @@ from synodic_client.startup import (
 
 from .conftest import make_registry_key
 
-_MSIX_PATCH = 'synodic_client.startup._is_msix'
+_MSIX_PATCH = 'spurtle.startup._is_msix'
 
 
 @pytest.fixture(autouse=True)
@@ -216,7 +216,7 @@ class TestGetRegisteredStartupPath:
             assert get_registered_startup_path() is None
 
 
-_SYNC_MODULE = 'synodic_client.startup'
+_SYNC_MODULE = 'spurtle.startup'
 
 
 class TestSyncStartup:

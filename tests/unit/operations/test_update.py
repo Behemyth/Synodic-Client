@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import MagicMock
 
-from synodic_client.operations.schema import DownloadResult, UpdateCheckResult
-from synodic_client.operations.update import apply_self_update, check_self_update, download_self_update
+from spurtle.operations.schema import DownloadResult, UpdateCheckResult
+from spurtle.operations.update import apply_self_update, check_self_update, download_self_update
 
 # ---------------------------------------------------------------------------
 # check_self_update

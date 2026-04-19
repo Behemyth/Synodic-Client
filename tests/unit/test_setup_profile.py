@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from synodic_client.operations.install import resolve_profile, validate_profile_url
-from synodic_client.operations.schema import SetupProfile
+from spurtle.operations.install import resolve_profile, validate_profile_url
+from spurtle.operations.schema import SetupProfile
 
 # ---------------------------------------------------------------------------
 # validate_profile_url
@@ -117,7 +117,7 @@ class TestResolveProfile:
         """A failed download should raise RuntimeError."""
         mock_result = MagicMock(success=False, message='timeout')
         with (
-            patch('synodic_client.operations.install.DownloadParameters'),
+            patch('spurtle.operations.install.DownloadParameters'),
             patch('porringer.api.API.download', new_callable=AsyncMock, return_value=mock_result),
         ):
             with pytest.raises(RuntimeError, match='Failed to download profile'):
@@ -135,7 +135,7 @@ class TestResolveProfile:
         with (
             patch('porringer.api.API.download', side_effect=fake_download),
             patch('tempfile.mkdtemp', return_value=str(tmp_path)),
-            patch('synodic_client.operations.install.safe_rmtree'),
+            patch('spurtle.operations.install.safe_rmtree'),
         ):
             with pytest.raises(RuntimeError, match='Failed to parse profile'):
                 asyncio.run(resolve_profile('https://example.com/profile.json'))

@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from synodic_client.application.screen.settings import SettingsWindow
-from synodic_client.config import config_dir, set_dev_mode
-from synodic_client.logging import (
+from spurtle.application.screen.settings import SettingsWindow
+from spurtle.config import config_dir, set_dev_mode
+from spurtle.logging import (
     EagerRotatingFileHandler,
     configure_logging,
     log_path,
@@ -69,9 +69,9 @@ class TestConfigureLogging:
 
     @staticmethod
     def test_attaches_file_handler(tmp_path: Path) -> None:
-        """configure_logging() should attach a file handler to the synodic_client logger."""
-        with patch('synodic_client.logging.log_path', return_value=tmp_path / 'synodic.log'):
-            app_logger = logging.getLogger('synodic_client')
+        """configure_logging() should attach a file handler to the spurtle logger."""
+        with patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'):
+            app_logger = logging.getLogger('spurtle')
             initial_count = len(app_logger.handlers)
 
             configure_logging()
@@ -88,13 +88,13 @@ class TestConfigureLogging:
     def test_writes_to_file(tmp_path: Path) -> None:
         """Log records should be written eagerly to the log file."""
         log_file = tmp_path / 'synodic.log'
-        app_logger = logging.getLogger('synodic_client')
+        app_logger = logging.getLogger('spurtle')
 
         handler = EagerRotatingFileHandler(str(log_file), encoding='utf-8')
         handler.setFormatter(logging.Formatter('%(message)s'))
         app_logger.addHandler(handler)
         try:
-            test_logger = logging.getLogger('synodic_client.test_writes')
+            test_logger = logging.getLogger('spurtle.test_writes')
             test_logger.setLevel(logging.INFO)
             test_logger.info('eager-flush-test')
 
@@ -115,8 +115,8 @@ class TestOpenLog:
         assert not log_file.exists()
 
         with (
-            patch('synodic_client.application.screen.settings.log_path', return_value=log_file),
-            patch('synodic_client.application.screen.settings.QDesktopServices') as mock_ds,
+            patch('spurtle.application.screen.settings.log_path', return_value=log_file),
+            patch('spurtle.application.screen.settings.QDesktopServices') as mock_ds,
         ):
             SettingsWindow._open_log()
             assert log_file.exists()
@@ -129,8 +129,8 @@ class TestOpenLog:
         log_file.write_text('existing content', encoding='utf-8')
 
         with (
-            patch('synodic_client.application.screen.settings.log_path', return_value=log_file),
-            patch('synodic_client.application.screen.settings.QDesktopServices') as mock_ds,
+            patch('spurtle.application.screen.settings.log_path', return_value=log_file),
+            patch('spurtle.application.screen.settings.QDesktopServices') as mock_ds,
         ):
             SettingsWindow._open_log()
             mock_ds.openUrl.assert_called_once()
@@ -143,7 +143,7 @@ class TestPorringerLogLevel:
     def test_frozen_build_sets_porringer_debug(tmp_path: Path) -> None:
         """In frozen builds, porringer logger should be set to DEBUG."""
         porringer_logger = logging.getLogger('porringer')
-        app_logger = logging.getLogger('synodic_client')
+        app_logger = logging.getLogger('spurtle')
 
         # Remove any existing EagerRotatingFileHandler so configure_logging re-runs
         for h in list(app_logger.handlers):
@@ -152,7 +152,7 @@ class TestPorringerLogLevel:
                 h.close()
 
         with (
-            patch('synodic_client.logging.log_path', return_value=tmp_path / 'synodic.log'),
+            patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'),
             patch.object(sys, 'frozen', True, create=True),
         ):
             configure_logging()
@@ -173,7 +173,7 @@ class TestPorringerLogLevel:
     def test_normal_build_sets_porringer_info(tmp_path: Path) -> None:
         """In normal (non-frozen) builds, porringer logger should be INFO."""
         porringer_logger = logging.getLogger('porringer')
-        app_logger = logging.getLogger('synodic_client')
+        app_logger = logging.getLogger('spurtle')
 
         # Remove any existing EagerRotatingFileHandler so configure_logging re-runs
         for h in list(app_logger.handlers):
@@ -188,7 +188,7 @@ class TestPorringerLogLevel:
             sys.__dict__.pop('frozen')
 
         try:
-            with patch('synodic_client.logging.log_path', return_value=tmp_path / 'synodic.log'):
+            with patch('spurtle.logging.log_path', return_value=tmp_path / 'synodic.log'):
                 configure_logging()
             assert porringer_logger.level == logging.INFO
         finally:

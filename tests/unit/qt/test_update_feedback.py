@@ -9,8 +9,8 @@ from porringer.schema import PluginInfo
 from porringer.schema.plugin import PluginKind
 from PySide6.QtWidgets import QPushButton
 
-from synodic_client.application.screen.plugin_row import PluginProviderHeader, PluginRow
-from synodic_client.application.screen.schema import PluginRowData
+from spurtle.application.screen.plugin_row import PluginProviderHeader, PluginRow
+from spurtle.application.screen.schema import PluginRowData
 
 
 def _make_plugin(

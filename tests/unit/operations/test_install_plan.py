@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from porringer.schema import SetupActionResult, SkipReason, SyncStrategy
 from porringer.schema.plugin import PluginKind
 
-from synodic_client.operations.schema import (
+from spurtle.operations.schema import (
     ActionCheckResult,
     InstallPlan,
     compute_install_plan,

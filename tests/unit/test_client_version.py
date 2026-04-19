@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 from packaging.version import Version
 
-from synodic_client.client import Client
+from spurtle.client import Client
 
 
 class TestClientVersion:

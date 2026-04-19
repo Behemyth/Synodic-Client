@@ -10,8 +10,8 @@ from porringer.core.schema import Package
 from porringer.schema.execution import SetupAction, SetupActionResult, SkipReason
 from porringer.schema.plugin import RuntimePackageResult
 
-from synodic_client.operations.schema import UpdateResult
-from synodic_client.operations.tool import update_runtime_plugin
+from spurtle.operations.schema import UpdateResult
+from spurtle.operations.tool import update_runtime_plugin
 
 _EXPECTED_RUNTIME_UPGRADES = 2
 

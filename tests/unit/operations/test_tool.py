@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from porringer.schema import SkipReason
 
-from synodic_client.operations.schema import UpdateResult
-from synodic_client.operations.tool import (
+from spurtle.operations.schema import UpdateResult
+from spurtle.operations.tool import (
     check_tool_updates,
     remove_package,
     update_tool,

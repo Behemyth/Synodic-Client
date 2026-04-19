@@ -31,8 +31,8 @@ flowchart TD
 ## Programmatic Usage
 
 ```python
-from synodic_client.client import Client
-from synodic_client.updater import UpdateChannel, UpdateConfig
+from spurtle.client import Client
+from spurtle.updater import UpdateChannel, UpdateConfig
 
 # Initialize
 client = Client()
@@ -63,7 +63,7 @@ The `UpdateConfig` dataclass controls update behavior:
 @dataclass
 class UpdateConfig:
     # GitHub repository URL for Velopack to discover releases
-    repo_url: str = 'https://github.com/synodic/synodic-client'
+    repo_url: str = 'https://github.com/synodic/spurtle'
 
     # Channel determines whether to use dev or stable releases
     channel: UpdateChannel = UpdateChannel.STABLE
